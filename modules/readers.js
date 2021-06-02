@@ -24,11 +24,11 @@ const folder_reader = (folder) => {
     };
 };
 
-const csv_reader = (file, parameters) => {
+const csv_reader = function (file, parameters) {
     const csvContent = text_reader(file, parameters)();
     const csvReader = new CSV(csvContent, parameters);
 
-    return () => csvReader.read();
+    return csvReader.read.bind(csvReader);
 };
 
 module.exports = {

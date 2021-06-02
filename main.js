@@ -33,7 +33,10 @@ http.createServer((request, response) => {
         const urlInformation = parser.parse(request.url);
 
         log.info(`Requesting: ${urlInformation.base} - Verb: ${request.method}`);
-        log.info(`Incoming body: ${bodyPayload}`);
+
+        if (bodyPayload !== '') {
+            log.info(`Incoming body: ${bodyPayload}`);
+        }
 
         let actionFound = false;
         let responseBody = null;

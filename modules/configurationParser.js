@@ -21,7 +21,7 @@ const parseProperties = function (properties) {
     return property;
 }
 
-const injectHandlers = (data) => {
+const injectHandlers = function (data) {
 
     for (const variable in data) {
         if (Object.hasOwnProperty.call(data, variable)) {
