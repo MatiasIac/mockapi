@@ -1,0 +1,12 @@
+version: '3.4'
+
+services:
+  mockapi:
+    image: mockapi
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+      NODE_ENV: production
+    ports:
+      - 3001:8001

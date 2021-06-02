@@ -1,0 +1,52 @@
+
+data:
+  myRows:
+    path: "./testdata/data.csv"
+    handler: csv
+    properties: json|seq|0
+    #options
+    #json || text
+    #seq || rand
+    #-1 = return every record on every request
+    #0...n starting index (always reset to 0 when reach EOR)
+
+  myPayload:
+    path: "./testdata/test.json"
+    handler: text
+
+  folderData:
+    path: "./testdata/"
+    handler: folder
+
+port: 8001
+
+endpoints:
+  "/orders":
+    verb: get
+    response: myPayload
+    responseStatus: 200
+    responseContentType: "application/json"
+  
+  "/folder":
+    verb: get
+    response: folderData
+
+  "/api/folder":
+    verb: get
+    response: folderData
+  
+  "/people":
+    verb: any
+    responseStatus: 200
+
+  "/user":
+    verb: get
+    responseStatus: 200
+    response: myRows
+    responseContentType: "application/json"
+
+log: verbose
+  #debug
+  #error
+  #verbose
+  #none
