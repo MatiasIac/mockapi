@@ -10,6 +10,8 @@ const LOG = require("./modules/log");
 const configFile = readers.text_reader(constants.CONFIG_FILE_NAME);
 const parsedConfiguration = YAML.parse(configFile());
 
+console.log(parsedConfiguration);
+
 if (parsedConfiguration.port === undefined) throw new Error("port property is required");
 
 const port = parsedConfiguration.port;

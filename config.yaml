@@ -3,7 +3,10 @@ data:
   myRows:
     path: "./testdata/data.csv"
     handler: csv
-    properties: json|seq|0
+    properties: 
+      - json
+      - seq
+      - 0
     #options
     #json || text
     #seq || rand
@@ -44,6 +47,11 @@ endpoints:
     responseStatus: 200
     response: myRows
     responseContentType: "application/json"
+  
+  Algo:
+    - 1
+
+
 
 log: verbose
   #debug

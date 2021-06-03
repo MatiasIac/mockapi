@@ -9,7 +9,7 @@ const parseProperties = function (properties) {
 
     if (properties === undefined) return property;
 
-    const props = properties.split('|');
+    const props = properties;
 
     if (props.length < 3) throw new Error("Invalid properties");
     if (isNaN(props[2])) throw new Error("Index must be a number");
