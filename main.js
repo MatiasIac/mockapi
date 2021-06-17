@@ -1,16 +1,14 @@
 const http = require('http');
+const LOG = require("./modules/log");
 const YAML = require('yaml');
 const constants = require("./modules/constants");
 const readers = require("./modules/readers");
 const parser = require("./modules/urlParser");
 const handlerInjector = require("./modules/configurationParser");
-const LOG = require("./modules/log");
-
+const ModuleProxy = require("./modules/moduleProxy")
 
 const configFile = readers.text_reader(constants.CONFIG_FILE_NAME);
 const parsedConfiguration = YAML.parse(configFile());
-
-console.log(parsedConfiguration);
 
 if (parsedConfiguration.port === undefined) throw new Error("port property is required");
 
@@ -18,6 +16,11 @@ const port = parsedConfiguration.port;
 const endpointList = parsedConfiguration.endpoints;
 const logLevel = parsedConfiguration.log || constants.LOG_LEVELS.ALL;
 const log = new LOG(logLevel);
+const moduleProxy = new ModuleProxy(log);
+
+if (parsedConfiguration.handler !== undefined) {
+    moduleProxy.load(parsedConfiguration.handler);
+}
 
 let data = parsedConfiguration.data || { };
 handlerInjector.loadHandlersFromConfiguration(data);
@@ -48,10 +51,11 @@ http.createServer((request, response) => {
         for (const endpointUrl in endpointList) {
             if (Object.hasOwnProperty.call(endpointList, endpointUrl)) {
                 const endpoint = endpointList[endpointUrl];
+                const requestMethod = request.method.toLowerCase();
                 
-                if (endpointUrl === urlInformation.base && (endpoint.verb === "any" || endpoint.verb.toLowerCase() === request.method.toLowerCase())) {
+                if (endpointUrl === urlInformation.base && (endpoint.verb === "any" || endpoint.verb.toLowerCase() === requestMethod)) {
 
-                    if (endpoint.response !== undefined && data[endpoint.response] === undefined) {
+                    if (endpoint.data !== undefined && data[endpoint.data] === undefined) {
                         log.error("No matching data variable for this request");
                         break;
                     }
@@ -60,7 +64,12 @@ http.createServer((request, response) => {
                     contentType = endpoint.responseContentType;
 
                     try {
-                        responseBody = endpoint.response === undefined ? "" : data[endpoint.response].dataHandler(urlInformation);
+                        const processData = endpoint.data === undefined ? "" : data[endpoint.data].dataHandler(urlInformation);
+
+                        responseBody = endpoint.handler !== undefined ?
+                            moduleProxy.execute(endpoint.handler, { method: requestMethod, url: endpointUrl }, processData) :
+                            processData;
+                        
                         responseStatus = endpoint.responseStatus;
                     } catch(ex) {
                         log.error(`${ex.message}`);

@@ -21,22 +21,26 @@ data:
     path: "./testdata/"
     handler: folder
 
+handler:
+  "custom": 
+    "myCustomHandler"
+
 port: 8001
 
 endpoints:
   "/orders":
     verb: get
-    response: myPayload
+    data: myPayload
     responseStatus: 200
     responseContentType: "application/json"
   
   "/folder":
     verb: get
-    response: folderData
+    data: folderData
 
   "/api/folder":
     verb: get
-    response: folderData
+    data: folderData
   
   "/people":
     verb: any
@@ -44,14 +48,16 @@ endpoints:
 
   "/user":
     verb: get
+    data: myRows
     responseStatus: 200
-    response: myRows
     responseContentType: "application/json"
-  
-  Algo:
-    - 1
 
-
+  "/custom":
+    verb: get
+    data: myPayload
+    responseStatus: 200
+    handler: custom
+    responseContentType: "application/json"
 
 log: verbose
   #debug
