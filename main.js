@@ -67,7 +67,7 @@ http.createServer((request, response) => {
                         const processData = endpoint.data === undefined ? "" : data[endpoint.data].dataHandler(urlInformation);
 
                         responseBody = endpoint.handler !== undefined ?
-                            moduleProxy.execute(endpoint.handler, { method: requestMethod, url: endpointUrl }, processData) :
+                            moduleProxy.execute(endpoint.handler, { method: requestMethod, url: endpointUrl, body: bodyPayload }, processData) :
                             processData;
                         
                         responseStatus = endpoint.responseStatus;
