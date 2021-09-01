@@ -30,6 +30,8 @@ log.message(`> Mock API attempting to use port: ${constants.COLOR.fgRed}${port}$
 http.createServer((request, response) => {
     let bodyPayload = [];
 
+    //response.setHeader('Access-Control-Allow-Origin', '*');
+
     request.on('data', (chunk) => {
         bodyPayload.push(chunk);
     }).on('end', () => {
