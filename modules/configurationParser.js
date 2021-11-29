@@ -28,12 +28,12 @@ const injectHandlers = function (data) {
             const node = data[variable];
             
             if (node.path === undefined) throw new Error("Node requires a path");
-            if (node.handler === undefined) throw new Error("Node requires a handler");
-            if (readers[node.handler + "_reader"] === undefined) throw new Error("Selected handler cannot be found");
+            if (node.reader === undefined) throw new Error("Node requires a reader");
+            if (readers[node.reader + "_reader"] === undefined) throw new Error("Selected reader cannot be found");
 
             const properties = parseProperties(node.properties);
 
-            const nodeHandler = readers[node.handler + "_reader"];
+            const nodeHandler = readers[node.reader + "_reader"];
             node.dataHandler = nodeHandler(node.path, properties);
         }
     }

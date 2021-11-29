@@ -1,8 +1,12 @@
 
+port: 8001
+enableCors: true
+#externalModulesPath: "../apiHandlers/"
+
 data:
   myRows:
     path: "./testdata/data.csv"
-    handler: csv
+    reader: csv
     properties: 
       - json
       - seq
@@ -15,18 +19,15 @@ data:
 
   myPayload:
     path: "./testdata/test.json"
-    handler: text
+    reader: text
 
   folderData:
     path: "./testdata/"
-    handler: folder
+    reader: folder
 
-handler:
+customHandlers:
   "custom": 
     "myCustomHandler"
-
-port: 8001
-enableCors: true
 
 endpoints:
   "/orders":

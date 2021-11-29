@@ -17,10 +17,10 @@ const enableCors = parsedConfiguration.enableCors;
 const endpointList = parsedConfiguration.endpoints;
 const logLevel = parsedConfiguration.log || constants.LOG_LEVELS.ALL;
 const log = new LOG(logLevel);
-const moduleProxy = new ModuleProxy(log);
+const moduleProxy = new ModuleProxy(parsedConfiguration.externalModulesPath || constants.EXTERNAL_MODULES_PATH, log);
 
-if (parsedConfiguration.handler !== undefined) {
-    moduleProxy.load(parsedConfiguration.handler);
+if (parsedConfiguration.customHandlers !== undefined) {
+    moduleProxy.load(parsedConfiguration.customHandlers);
 }
 
 let data = parsedConfiguration.data || { };

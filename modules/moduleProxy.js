@@ -5,9 +5,10 @@ class Proxy {
 
     _externalModuleList = {};
 
-    constructor(logger) {
+    constructor(externalModulePath, logger) {
         this._externalModuleList = {};
         this._logger = logger;
+        this._externalModulePath = externalModulePath;
     }
 
     async load(modules) {
@@ -16,7 +17,7 @@ class Proxy {
                 const moduleFileName = modules[moduleName];
                 
                 try {
-                    const modulePath = `${constants.EXTERNAL_MODULES_PATH}${moduleFileName}.js`;
+                    const modulePath = `${this._externalModulePath}${moduleFileName}.js`;
 
                     this._logger.info(`Attempting to load module ${moduleName} from ${modulePath}`);
 

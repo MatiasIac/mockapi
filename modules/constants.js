@@ -1,13 +1,13 @@
 module.exports = {
     BASE_URL: "http://localhost",
-    CONFIG_FILE_NAME: "./config.yaml",
+    CONFIG_FILE_NAME: "./.mockapi-config",
     LOG_LEVELS: {
         DEBUG: "debug",
         ERROR: "error",
         VERBOSE: "verbose",
         NONE: "none"
     },
-    EXTERNAL_MODULES_PATH: "../scripts/",
+    EXTERNAL_MODULES_PATH: "../apiHandlers/",
     DEFAULT_CONTENT_TYPE: "text/plain",
     HTTP_STATUS_CODES: {
         CONTINUE                            :100,
