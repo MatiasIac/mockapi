@@ -26,6 +26,7 @@ handler:
     "myCustomHandler"
 
 port: 8001
+enableCors: true
 
 endpoints:
   "/orders":

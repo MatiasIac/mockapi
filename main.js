@@ -13,6 +13,7 @@ const parsedConfiguration = YAML.parse(configFile());
 if (parsedConfiguration.port === undefined) throw new Error("port property is required");
 
 const port = parsedConfiguration.port;
+const enableCors = parsedConfiguration.enableCors;
 const endpointList = parsedConfiguration.endpoints;
 const logLevel = parsedConfiguration.log || constants.LOG_LEVELS.ALL;
 const log = new LOG(logLevel);
@@ -25,12 +26,16 @@ if (parsedConfiguration.handler !== undefined) {
 let data = parsedConfiguration.data || { };
 handlerInjector.loadHandlersFromConfiguration(data);
 
+log.message(``);
+log.message(`Mock API configuration:`);
+log.message(`  PORT: ${constants.COLOR.fgGreen}${port}${constants.COLOR.reset}`);
+log.message(`  CORS enabled: ${enableCors ? constants.COLOR.fgGreen : constants.COLOR.fgRed}${enableCors}${constants.COLOR.reset}`);
+log.message(``);
+
 log.message(`> Mock API attempting to use port: ${constants.COLOR.fgRed}${port}${constants.COLOR.reset}`)
 
 http.createServer((request, response) => {
     let bodyPayload = [];
-
-    //response.setHeader('Access-Control-Allow-Origin', '*');
 
     request.on('data', (chunk) => {
         bodyPayload.push(chunk);
@@ -91,9 +96,12 @@ http.createServer((request, response) => {
                 constants.HTTP_STATUS_CODES.OK);
 
         response.setHeader('Content-Type', contentType || constants.DEFAULT_CONTENT_TYPE);
+        
+        enableCors && response.setHeader('Access-Control-Allow-Origin', '*');
 
         response.end(responseBody);
     });
 }).listen(port);
 
 log.message(`> Mock API listening on port: ${constants.COLOR.fgGreen}${port}${constants.COLOR.reset}`)
+log.message(``);
