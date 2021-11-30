@@ -1,6 +1,6 @@
 module.exports = {
     BASE_URL: "http://localhost",
-    CONFIG_FILE_NAME: "./.mockapi-config",
+    CONFIG_FILE_NAME: ".mockapi-config",
     LOG_LEVELS: {
         DEBUG: "debug",
         ERROR: "error",

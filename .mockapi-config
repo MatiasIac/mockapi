@@ -1,8 +1,12 @@
 
+# basic Mock API configuration
 port: 8001
 enableCors: true
 #externalModulesPath: "../apiHandlers/"
 
+# dummy example configurations
+# PATH must point to a existing CSV file
+# 3 native readers are supported: text | csv | folder
 data:
   myRows:
     path: "./testdata/data.csv"
@@ -17,48 +21,23 @@ data:
     #-1 = return every record on every request
     #0...n starting index (always reset to 0 when reach EOR)
 
-  myPayload:
-    path: "./testdata/test.json"
-    reader: text
+# custom http response handlers section
+#customHandlers:
+#  "custom": 
+#    "myCustomHandler"
 
-  folderData:
-    path: "./testdata/"
-    reader: folder
-
-customHandlers:
-  "custom": 
-    "myCustomHandler"
-
+# Mock API available endpoints, return types and
+# general configuration
+# verb: any | get | post | delete | ...
+# data: refers to previously configured data and readers
+# responseStatus: 200 | 404 | 500 | ...
+# responseContentType: any MIME available type
+# handler: refers to any previously configured custom handler
 endpoints:
-  "/orders":
-    verb: get
-    data: myPayload
-    responseStatus: 200
-    responseContentType: "application/json"
-  
-  "/folder":
-    verb: get
-    data: folderData
-
-  "/api/folder":
-    verb: get
-    data: folderData
-  
-  "/people":
-    verb: any
-    responseStatus: 200
-
-  "/user":
+  "/data":
     verb: get
     data: myRows
     responseStatus: 200
-    responseContentType: "application/json"
-
-  "/custom":
-    verb: get
-    data: myPayload
-    responseStatus: 200
-    handler: custom
     responseContentType: "application/json"
 
 log: verbose

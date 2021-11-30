@@ -1,13 +1,14 @@
 const http = require('http');
-const LOG = require("./modules/log");
+const LOG = require('./modules/log');
 const YAML = require('yaml');
-const constants = require("./modules/constants");
-const readers = require("./modules/readers");
-const parser = require("./modules/urlParser");
-const handlerInjector = require("./modules/configurationParser");
-const ModuleProxy = require("./modules/moduleProxy")
+const constants = require('./modules/constants');
+const readers = require('./modules/readers');
+const parser = require('./modules/urlParser');
+const handlerInjector = require('./modules/configurationParser');
+const ModuleProxy = require('./modules/moduleProxy')
 
-const configFile = readers.text_reader(constants.CONFIG_FILE_NAME);
+const rootPath = __dirname;
+const configFile = readers.text_reader(`${rootPath}/${constants.CONFIG_FILE_NAME}`);
 const parsedConfiguration = YAML.parse(configFile());
 
 if (parsedConfiguration.port === undefined) throw new Error("port property is required");

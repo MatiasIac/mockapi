@@ -12,22 +12,26 @@ MockAPI can be used as it is. Without any additional coding activity. Just confi
 
 ### Configuring MockAPI
 
-Edit ```config.yaml``` to add your own endpoints, responses, parsers and data.
+Edit ```.mockapi-config``` to add your own endpoints, responses, parsers and data. Use standard YAML notation for this file.
 
 #### Main entry points
 
+**port** - Specify the HTTP port to be used by MockAPI to expose the defined endpoints.
+
+**enableCors** - Enable/Disable CORS for MockAPI.
+
+**externalModulesPath** - Optional configuration. Allows to specify a different path where the user custom handlers are located.
+
 **data** - 
 Holds and describe the available data for all endpoints and responses.
-
-**port** - Specify the HTTP port to be used by MockAPI to expose the defined endpoints.
 
 **endpoints** - Describe all available endpoints, its verbs and responses.
 
 **log** - Define MockAPI log level.
 
-**handler** - Import a custom data handler,
+**customHandlers** - Import a custom HTTP data handler. Use these custom handlers to manipulate the output of your responses for a particular endpoint.
 
-Within ```data``` entry, it is possible to define how the data must be handled. There are three built-in handlers that comes with MockAPI.
+Within ```data``` entry, it is possible to define how the data must be handled. There are three built-in readers that comes with MockAPI.
 
 **csv** - Reads the defined data as CSV.
 
@@ -40,7 +44,7 @@ Within ```data``` entry, it is possible to define how the data must be handled. 
 ```yaml
 myRows:
     path: "./testdata/data.csv"
-    handler: csv
+    reader: csv
     properties: 
       - json
       - seq
@@ -64,8 +68,9 @@ From the previous code snippet, we are defining an endpoint ```[MockAPI URL]:[PO
 A custom handler let you manipulate the data as your will. First, define the handler as follows:
 
 ```yaml
-"custom": 
-  "myCustomHandler"
+customHandlers:
+  "custom": 
+    "myCustomHandler"
 ```
 The previous code defines a custom handler called ```custom``` and will use the script code called ```myCustomHandler```. The custom code must be placed inside of ```scripts``` folder and coded in JavaScript with NodeJS support.
 
