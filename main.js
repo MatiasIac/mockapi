@@ -1,3 +1,7 @@
+#!/usr/bin/env node
+
+'use strict';
+
 const http = require('http');
 const LOG = require('./modules/log');
 const YAML = require('yaml');
