@@ -1,15 +1,19 @@
 {
   "name": "mockapi-msi",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Mock API is a lightweight configurable HTTP API for testing and prototyping.",
   "main": "main.js",
   "scripts": {
+    "start": "node ./main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Matias Iacono",
   "license": "ISC",
   "bin": {
     "mockapi": "main.js"
+  },
+  "engines": {
+    "node": ">=16"
   },
   "dependencies": {
     "yaml": "2.0.0-5"
