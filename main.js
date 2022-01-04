@@ -9,9 +9,17 @@ const constants = require('./modules/constants');
 const readers = require('./modules/readers');
 const parser = require('./modules/urlParser');
 const handlerInjector = require('./modules/configurationParser');
-const ModuleProxy = require('./modules/moduleProxy')
-
+const ModuleProxy = require('./modules/moduleProxy');
+const CLI = require('./modules/cli');
 const rootPath = __dirname;
+
+const cli = new CLI(`${rootPath}/${constants.CONFIG_FILE_NAME}`);
+
+if (cli.hasCommands()) {
+    cli.executeCommandLine();
+    return false;
+}
+
 const configFile = readers.text_reader(`${rootPath}/${constants.CONFIG_FILE_NAME}`);
 const parsedConfiguration = YAML.parse(configFile());
 

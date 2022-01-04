@@ -93,3 +93,17 @@ log: verbose
   #verbose <- Logs debug, information and errors
   #none <- Turn off the logs
 ```
+
+## MockAPI CLI
+
+MockAPI provides a small but helpful CLI. Type ```mockapi --help``` to get the available commands from the CLI once MockAPI is installed.
+
+#### The ```init``` command
+
+Once MockAPI is globally installed, you will need a configuration file with minimal information to be able of start mocking the API. The ```init``` command argument will lead you through different basic questions helping you to initialize this configuration file.
+
+```powershell
+mockapi --init
+```
+
+You can skip every question which will assign some default values to the configuration file. Later you could change these values using any text editor.
