@@ -1,6 +1,6 @@
 {
   "name": "mockapi-msi",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Mock API is a lightweight configurable HTTP API for testing and prototyping.",
   "main": "main.js",
   "scripts": {
