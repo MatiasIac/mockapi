@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const constants = require("./constants");
 const CSV = require('./csv');
 const HttpException = require('./HttpException');
@@ -13,6 +14,8 @@ const text_reader = (file) => {
     };
 };
 
+const file_exists = (file) => fs.existsSync(file);
+
 const folder_reader = (folder) => {
     return (urlInformation) => {
 
@@ -20,7 +23,8 @@ const folder_reader = (folder) => {
             throw new HttpException(constants.HTTP_STATUS_CODES.NOT_ACCEPTABLE, "File not provided");
         }
 
-        return text_reader(folder + urlInformation.file)()
+        const file = path.join(folder, urlInformation.file);
+        return text_reader(file)()
     };
 };
 
@@ -34,5 +38,6 @@ const csv_reader = function (file, parameters) {
 module.exports = {
     text_reader: text_reader,
     folder_reader: folder_reader,
-    csv_reader: csv_reader
+    csv_reader: csv_reader,
+    file_exists: file_exists
 };
