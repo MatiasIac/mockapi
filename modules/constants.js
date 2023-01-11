@@ -7,7 +7,7 @@ module.exports = {
         VERBOSE: "verbose",
         NONE: "none"
     },
-    EXTERNAL_MODULES_PATH: "../apiHandlers/",
+    EXTERNAL_MODULES_PATH: "apiHandlers/",
     DEFAULT_CONTENT_TYPE: "text/plain",
     HTTP_STATUS_CODES: {
         CONTINUE                            :100,

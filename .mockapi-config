@@ -2,7 +2,7 @@
 # basic Mock API configuration
 port: 8001
 enableCors: true
-#externalModulesPath: "../apiHandlers/"
+#externalModulesPath: "apiHandlers/"
 
 # dummy example configurations
 # PATH must point to a existing CSV file
@@ -22,9 +22,9 @@ data:
     #0...n starting index (always reset to 0 when reach EOR)
 
 # custom http response handlers section
+# use: handler unique name : file name within the previously declared folder
 #customHandlers:
-#  "custom": 
-#    "myCustomHandler"
+#  "custom": "myCustomHandler"
 
 # Mock API available endpoints, return types and
 # general configuration
@@ -39,6 +39,7 @@ endpoints:
     data: myRows
     responseStatus: 200
     responseContentType: "application/json"
+    #handler: "custom"
 
 log: verbose
   #debug

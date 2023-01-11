@@ -32,7 +32,7 @@ if (parsedConfiguration.port === undefined) throw new Error("port property is re
 
 const logLevel = parsedConfiguration.log || constants.LOG_LEVELS.ALL;
 const log = new LOG(logLevel);
-const moduleProxy = new ModuleProxy(parsedConfiguration.externalModulesPath || constants.EXTERNAL_MODULES_PATH, log);
+const moduleProxy = new ModuleProxy(`file://${rootPath}/${(parsedConfiguration.externalModulesPath || constants.EXTERNAL_MODULES_PATH)}`, log);
 
 if (parsedConfiguration.customHandlers !== undefined) {
     moduleProxy.load(parsedConfiguration.customHandlers);
