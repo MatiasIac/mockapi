@@ -6,6 +6,10 @@ MockAPI let you create fake responses with pre defined and dynamic data for defi
 
 MockAPI also is intended to help you when, during testing phase, you cannot afford complex and expensive products (And you do not need them) that requires bulky configuration steps or depends directly on third party providers that you cannot control.
 
+## Version 2.0.1 notes
+
+- A bug related to custom handlers was detected and fixed.
+
 ## Version 2.0.0 notes
 
 - Using NodeJS managers such as NVM causes configuration file not being picked from the execution/working folder.
