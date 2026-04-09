@@ -3,6 +3,7 @@
 port: 8001
 enableCors: true
 #externalModulesPath: "apiHandlers/"
+#staticPath: "./public"
 
 # dummy example configurations
 # PATH must point to a existing CSV file

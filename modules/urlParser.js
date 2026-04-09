@@ -10,14 +10,45 @@ const parser = (url) => {
     const hasFile = file.length > 0;
 
     return {
+        pathname: parsedUrl.pathname,
         base: baseUrl,
         file: hasFile ? file[0] : "",
         hasFile: hasFile,
-        search: parsedUrl.searchParamss
+        search: parsedUrl.searchParams
     };
 
 };
 
+/**
+ * Matches a request path against an endpoint pattern that may contain
+ * path parameters (e.g., /users/:id/orders/:orderId).
+ *
+ * @param {string} pattern - The endpoint pattern from the configuration.
+ * @param {string} requestPath - The actual incoming request base path.
+ * @returns {{ match: boolean, params: Object }} Whether it matched and extracted path parameters.
+ */
+const matchPath = (pattern, requestPath) => {
+    const patternParts = pattern.split("/").filter((e) => e !== "");
+    const requestParts = requestPath.split("/").filter((e) => e !== "");
+
+    if (patternParts.length !== requestParts.length) {
+        return { match: false, params: {} };
+    }
+
+    const params = {};
+
+    for (let i = 0; i < patternParts.length; i++) {
+        if (patternParts[i].startsWith(":")) {
+            params[patternParts[i].substring(1)] = requestParts[i];
+        } else if (patternParts[i] !== requestParts[i]) {
+            return { match: false, params: {} };
+        }
+    }
+
+    return { match: true, params };
+};
+
 module.exports = {
-    parse: parser
+    parse: parser,
+    matchPath: matchPath
 };

@@ -34,20 +34,17 @@ class Proxy {
     }
 
     execute(name, requestInformation, data) {
-        for (const moduleName in this._externalModuleList) {
-            if (Object.hasOwnProperty.call(this._externalModuleList, moduleName) && moduleName === name) {
-                const module = this._externalModuleList[moduleName];
+        const module = this._externalModuleList[name];
 
-                try {
-                    return module.process(requestInformation, data);    
-                } catch (error) {
-                    throw new HttpException(constants.HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR, `Module ${moduleName} failed. ${error}`);
-                }
-                
-            }
+        if (!module) {
+            throw new HttpException(constants.HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR, `Module ${name} doesn't exist`);
         }
 
-        throw new HttpException(constants.HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR, `Module ${moduleName} doesn't exists`);
+        try {
+            return module.process(requestInformation, data);
+        } catch (error) {
+            throw new HttpException(constants.HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR, `Module ${name} failed. ${error}`);
+        }
     }
     
 }
