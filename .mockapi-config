@@ -4,6 +4,14 @@ port: 8001
 enableCors: true
 #externalModulesPath: "apiHandlers/"
 #staticPath: "./public"
+#openApi:
+#  enabled: true
+#  docsPath: "/docs"
+#  specPath: "/openapi.json"
+#  info:
+#    title: "MockAPI"
+#    version: "1.0.0"
+#    description: "OpenAPI definition generated from .mockapi-config."
 
 # dummy example configurations
 # PATH must point to a existing CSV file

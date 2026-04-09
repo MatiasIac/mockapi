@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const constants = require('./constants');
 const handlerLoader = require('./configurationParser');
+const openApi = require('./openApi');
 
 const MIME_TYPES = {
     '.html': 'text/html',
@@ -35,6 +36,8 @@ class Core {
     _staticPath = null;
     _connections = new Set();
     _tls = null;
+    _openApi = null;
+    _openApiSpec = null;
 
     constructor(logger, configurations, modulesProxy) {
         this._configurations = configurations;
@@ -45,9 +48,11 @@ class Core {
         this._modulesProxy = modulesProxy;
         this._staticPath = configurations.staticPath || null;
         this._tls = this._parseTls(configurations.tls);
+        this._openApi = this._parseOpenApi(configurations.openApi);
 
         this._data = configurations.data || { };
         handlerLoader.loadHandlersFromConfiguration(this._data);
+        this._refreshOpenApiSpec();
     }
 
     _parseTls(tlsConfig) {
@@ -76,6 +81,63 @@ class Core {
             methods: corsConfig.methods || '*',
             headers: corsConfig.headers || '*'
         };
+    }
+
+    _normalizeRoutePath(routePath, fallbackPath) {
+        if (typeof routePath !== 'string' || routePath.trim() === '') return fallbackPath;
+
+        let normalized = routePath.trim();
+
+        if (!normalized.startsWith('/')) {
+            normalized = `/${normalized}`;
+        }
+
+        if (normalized.length > 1 && normalized.endsWith('/')) {
+            normalized = normalized.slice(0, -1);
+        }
+
+        return normalized;
+    }
+
+    _parseOpenApi(openApiConfig) {
+        const defaultConfig = {
+            enabled: true,
+            docsPath: '/docs',
+            specPath: '/openapi.json',
+            title: 'MockAPI',
+            version: '1.0.0',
+            description: 'OpenAPI definition generated from .mockapi-config.'
+        };
+
+        if (openApiConfig === false) {
+            return {
+                ...defaultConfig,
+                enabled: false
+            };
+        }
+
+        if (openApiConfig === true || openApiConfig === undefined || openApiConfig === null) {
+            return defaultConfig;
+        }
+
+        if (typeof openApiConfig !== 'object') {
+            return defaultConfig;
+        }
+
+        const infoConfig = openApiConfig.info || {};
+
+        return {
+            enabled: openApiConfig.enabled !== false,
+            docsPath: this._normalizeRoutePath(openApiConfig.docsPath, defaultConfig.docsPath),
+            specPath: this._normalizeRoutePath(openApiConfig.specPath, defaultConfig.specPath),
+            title: infoConfig.title || openApiConfig.title || defaultConfig.title,
+            version: infoConfig.version || openApiConfig.version || defaultConfig.version,
+            description: infoConfig.description || openApiConfig.description || defaultConfig.description
+        };
+    }
+
+    _refreshOpenApiSpec() {
+        this._openApiSpec = openApi.buildSpec(this._openApi, this._endpointList);
     }
 
     _applyCorsHeaders(request, response) {
@@ -134,6 +196,30 @@ class Core {
         return true;
     }
 
+    _handleOpenApiRequest(request, response, pathName) {
+        if (!this._openApi || this._openApi.enabled === false || request.method !== 'GET') {
+            return false;
+        }
+
+        if (pathName === this._openApi.specPath) {
+            response.statusCode = constants.HTTP_STATUS_CODES.OK;
+            response.setHeader('Content-Type', 'application/json');
+            this._applyCorsHeaders(request, response);
+            response.end(JSON.stringify(this._openApiSpec, null, 2));
+            return true;
+        }
+
+        if (pathName === this._openApi.docsPath || pathName === `${this._openApi.docsPath}/`) {
+            response.statusCode = constants.HTTP_STATUS_CODES.OK;
+            response.setHeader('Content-Type', 'text/html; charset=utf-8');
+            this._applyCorsHeaders(request, response);
+            response.end(openApi.buildDocsPage(this._openApi));
+            return true;
+        }
+
+        return false;
+    }
+
     run() {
         const self = this;
 
@@ -147,14 +233,18 @@ class Core {
                 return;
             }
 
+            const urlInformation = parser.parse(request.url);
+
+            if (self._handleOpenApiRequest(request, response, urlInformation.pathname)) {
+                return;
+            }
+
             let bodyPayload = [];
         
             request.on('data', (chunk) => {
                 bodyPayload.push(chunk);
             }).on('end', () => {
                 bodyPayload = Buffer.concat(bodyPayload).toString();
-        
-                const urlInformation = parser.parse(request.url);
         
                 self._logger.info(`Requesting: ${urlInformation.base} - Verb: ${request.method}`);
         
@@ -266,9 +356,11 @@ class Core {
         this._cors = this._parseCors(configurations.enableCors);
         this._endpointList = configurations.endpoints;
         this._staticPath = configurations.staticPath || null;
+        this._openApi = this._parseOpenApi(configurations.openApi);
 
         this._data = configurations.data || {};
         handlerLoader.loadHandlersFromConfiguration(this._data);
+        this._refreshOpenApiSpec();
 
         this._logger.info('Configuration reloaded');
     }

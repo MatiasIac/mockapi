@@ -6,6 +6,12 @@ MockAPI let you create fake responses with pre defined and dynamic data for defi
 
 MockAPI also is intended to help you when, during testing phase, you cannot afford complex and expensive products (And you do not need them) that requires bulky configuration steps or depends directly on third party providers that you cannot control.
 
+## Version 2.5.0 notes
+
+- **OpenAPI JSON endpoint**: MockAPI now generates and serves an OpenAPI document at `/openapi.json` based on your configured endpoints.
+- **Interactive docs page**: Swagger UI is available at `/docs`, allowing users to inspect and try endpoints directly from the browser.
+- **OpenAPI configuration**: New optional `openApi` section allows enabling/disabling docs and overriding docs/spec paths and metadata.
+
 ## Version 2.4.0 notes
 
 - **HTTPS support**: New `tls` configuration option with `cert` and `key` paths. When provided, MockAPI starts an HTTPS server instead of HTTP.
@@ -65,6 +71,8 @@ Edit ```.mockapi-config``` to add your own endpoints, responses, parsers and dat
 **externalModulesPath** - Optional configuration. Allows to specify a different path where the user custom handlers are located.
 
 **staticPath** - Optional configuration. Path to a local directory to serve static files from. Requests that don't match any endpoint will fall back to static file serving.
+
+**openApi** - Optional configuration to enable/disable generated OpenAPI docs and customize routes and document metadata.
 
 **data** - 
 Holds and describe the available data for all endpoints and responses.
@@ -163,6 +171,36 @@ The previous example will wait ```2000ms``` before sending the response, which i
 #### Hot-reload
 
 MockAPI watches the ```.mockapi-config``` file for changes. When the file is saved, endpoints and data sources are automatically reloaded without restarting the server. This allows you to add, remove, or modify endpoints while the server is running.
+
+#### OpenAPI docs
+
+MockAPI can auto-generate OpenAPI docs from your configured endpoints and expose them with built-in routes:
+
+- ``/openapi.json`` - generated OpenAPI document
+- ``/docs`` - Swagger UI page powered by the generated document
+
+These routes update automatically when `.mockapi-config` changes (hot-reload).
+The `/docs` page loads Swagger UI assets from `unpkg.com`.
+
+To customize or disable this feature, use the optional `openApi` section:
+
+```yaml
+openApi:
+  enabled: true
+  docsPath: "/docs"
+  specPath: "/openapi.json"
+  info:
+    title: "My Mock API"
+    version: "1.0.0"
+    description: "Generated from MockAPI configuration."
+```
+
+Disable docs completely:
+
+```yaml
+openApi:
+  enabled: false
+```
 
 #### CORS configuration
 

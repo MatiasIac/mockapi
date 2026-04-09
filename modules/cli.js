@@ -15,6 +15,9 @@ class CLI {
     _configTemplate = {
         port: 8080,
         enableCors: true,
+        openApi: {
+          enabled: true
+        },
         data: {
           myRows: { path: 'YOUR FOLDER', reader: 'folder' }
         },
