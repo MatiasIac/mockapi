@@ -34,6 +34,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "yaml": "2.2.2"
+    "yaml": "2.8.3"
   }
 }
