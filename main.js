@@ -18,8 +18,9 @@ const configFilePath = `${rootPath}/${constants.CONFIG_FILE_NAME}`;
 const cli = new CLI(configFilePath);
 
 if (cli.hasCommands()) {
-    cli.executeCommandLine();
-    process.exit(0);
+    const syncExit = cli.executeCommandLine();
+    if (syncExit !== false) process.exit(0);
+    return;
 }
 
 if (!readers.file_exists(configFilePath)) {

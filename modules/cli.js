@@ -71,13 +71,14 @@ class CLI {
                         } else {
                             console.log("Configuration file created");
                         }
+                        rl.close();
+                        process.exit(err ? 1 : 0);
                     });
-                    
-                    rl.close();
                 });
             });        
         });
 
+        return false;
     }
 
     _helpCommand() {
@@ -89,6 +90,7 @@ class CLI {
         console.log("--help, help    shows this help");
         console.log("--init, init    creates a basic configuration file");
         console.log("");
+        return true;
     }
 
     hasCommands() { return this._arguments.length > 0; }
@@ -102,7 +104,8 @@ class CLI {
                 command = this._commands[this._arguments[0]];
             }
 
-            command.apply(this);
+            const syncExit = command.apply(this);
+            return syncExit;
         }
     }
 }
