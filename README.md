@@ -6,6 +6,10 @@ MockAPI let you create fake responses with pre defined and dynamic data for defi
 
 MockAPI also is intended to help you when, during testing phase, you cannot afford complex and expensive products (And you do not need them) that requires bulky configuration steps or depends directly on third party providers that you cannot control.
 
+## Version 2.5.1 notes
+
+- Fixed a small issue with the CLI that prevented to create a default configuration file.
+
 ## Version 2.5.0 notes
 
 - **OpenAPI JSON endpoint**: MockAPI now generates and serves an OpenAPI document at `/openapi.json` based on your configured endpoints.
