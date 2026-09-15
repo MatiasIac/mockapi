@@ -1,361 +1,390 @@
-# Dynamic mocking descriptive API (MockAPI)
+# MockAPI
 
-MockAPI help you buiding your app when requires connecting to a not yet built external API.
+A lightweight HTTP API server for development, testing, and prototyping. Define
+endpoints in YAML, return fixtures or inline JSON, and simulate errors and changing
+responses without building a backend.
 
-MockAPI let you create fake responses with pre defined and dynamic data for defined endpoints.
+## Quick start
 
-MockAPI also is intended to help you when, during testing phase, you cannot afford complex and expensive products (And you do not need them) that requires bulky configuration steps or depends directly on third party providers that you cannot control.
+Requires Node.js **22 or newer**. CI tests Node 22 and 24 on Windows and Linux;
+the Docker image uses Node 24 LTS.
 
-## Version 2.5.1 notes
+```sh
+npm install --global mockapi-msi
+mockapi init --yes
+mockapi validate
+mockapi
+```
 
-- Fixed a small issue with the CLI that prevented to create a default configuration file.
+Open `http://localhost:8080/data` for the generated sample response and
+`http://localhost:8080/docs` for interactive API documentation.
 
-## Version 2.5.0 notes
+From this repository:
 
-- **OpenAPI JSON endpoint**: MockAPI now generates and serves an OpenAPI document at `/openapi.json` based on your configured endpoints.
-- **Interactive docs page**: Swagger UI is available at `/docs`, allowing users to inspect and try endpoints directly from the browser.
-- **OpenAPI configuration**: New optional `openApi` section allows enabling/disabling docs and overriding docs/spec paths and metadata.
+```sh
+npm ci
+node main.js validate
+npm start
+npm test
+```
 
-## Version 2.4.0 notes
+The repository's `.mockapi-config` retains the CSV example at
+`http://localhost:8001/data`. See [examples/features.yaml](examples/features.yaml)
+for a runnable demonstration of the new features:
 
-- **HTTPS support**: New `tls` configuration option with `cert` and `key` paths. When provided, MockAPI starts an HTTPS server instead of HTTP.
-- **Unit tests**: Test suite added using Node.js built-in test runner. Tests cover CSV parsing, URL parsing, path matching, HttpException, and Core HTTP server behavior. Run with `npm test`.
+```sh
+node main.js --config examples/features.yaml
+```
 
-## Version 2.3.0 notes
+## CLI
 
-- **CORS fine-tuning**: `enableCors` now accepts an object to configure specific origins, methods, and headers. Preflight (OPTIONS) requests are handled automatically. Boolean `true` is still supported for allow-all behavior.
-- **Graceful shutdown**: The server now handles `SIGTERM` and `SIGINT` signals, cleanly closing the HTTP server and config watcher before exiting.
-- **Static file serving**: New `staticPath` configuration option serves files from a local directory. Requests that don't match any endpoint will attempt to serve a static file before returning 404.
+```text
+mockapi [--config FILE]
+mockapi init [--yes] [--port NUMBER] [--force] [--config FILE]
+mockapi validate [--config FILE]
+mockapi --help
+mockapi --version
+```
 
-## Version 2.2.0 notes
+- `init` asks for a port, CORS, and a sample endpoint. `--yes` accepts defaults.
+- `--force` explicitly permits overwriting an existing configuration.
+- `validate` checks options, route definitions, referenced data, TLS certificates,
+  and custom-handler exports. It exits with a nonzero status on failure.
+- `--config` selects a file; otherwise `.mockapi-config` in the current directory
+  is used. Relative data, handler, static, and TLS paths resolve from the
+  **configuration file's directory**.
+- Loading or validating custom handlers executes their JavaScript module code.
 
-- **Path parameters**: Endpoints now support path parameters using `:param` syntax (e.g., `/users/:id`). Extracted parameters are available in custom handlers via `requestInformation.params`.
-- **Query parameters**: Query string parameters are now parsed and available in custom handlers via `requestInformation.query`.
-- **Response delay**: Endpoints can now simulate slow APIs with a `delay` property (in milliseconds).
-- **Hot-reload**: The configuration file is watched for changes. Endpoints and data sources are automatically reloaded without restarting the server.
-
-## Version 2.1.0 notes
-
-- Codebase modernized to ES6 classes (`HttpException`, `Log`, `CSV`).
-- CSV parser rewritten with RFC 4180 compliant state machine. Correctly handles commas inside quoted fields, escaped quotes, and mixed line endings (`\r\n`, `\n`, `\r`).
-- Fixed bug in `urlParser` (`searchParamss` typo).
-- Fixed bug in `moduleProxy.execute()` referencing a variable outside its scope.
-- Fixed invalid top-level `return` statements in `main.js`.
-- Docker image updated from Node 12 (EOL) to Node 20 LTS; switched to `npm ci --omit=dev`.
-- Removed deprecated `version` key from Docker Compose files.
-- `package.json` updated with `files`, `keywords`, and engine requirement bumped to `>=18`.
-- Custom handler example (`myCustomHandler.js`) modernized with JSDoc and meaningful sample logic.
-- ASCII art banner displayed on application startup.
-
-## Version 2.0.1 notes
-
-- A bug related to custom handlers was detected and fixed.
-
-## Version 2.0.0 notes
-
-- Using NodeJS managers such as NVM causes configuration file not being picked from the execution/working folder.
-- New CORE class created and code moved from the main module.
-- Additional checking for the configuration file.
-- Folder file readear incorrect path contactenation fixed.
-
-## Configuration file
-
-MockAPI can be used as it is. Without any additional coding activity. Just configure your endpoints and run ```main.js``` file.
-
-### Configuring MockAPI
-
-Edit ```.mockapi-config``` to add your own endpoints, responses, parsers and data. Use standard YAML notation for this file.
-
-#### Main entry points
-
-**port** - Specify the HTTP port to be used by MockAPI to expose the defined endpoints.
-
-**enableCors** - Configure CORS for MockAPI. Accepts ```true``` for allow-all behavior, or an object for fine-grained control.
-
-**externalModulesPath** - Optional configuration. Allows to specify a different path where the user custom handlers are located.
-
-**staticPath** - Optional configuration. Path to a local directory to serve static files from. Requests that don't match any endpoint will fall back to static file serving.
-
-**openApi** - Optional configuration to enable/disable generated OpenAPI docs and customize routes and document metadata.
-
-**data** - 
-Holds and describe the available data for all endpoints and responses.
-
-**endpoints** - Describe all available endpoints, its verbs and responses.
-
-**log** - Define MockAPI log level.
-
-**customHandlers** - Import a custom HTTP data handler. Use these custom handlers to manipulate the output of your responses for a particular endpoint.
-
-Within ```data``` entry, it is possible to define how the data must be handled. There are three built-in readers that comes with MockAPI.
-
-**csv** - Reads the defined data as CSV.
-
-**text** - Considers the data source as plain text.
-
-**folder** - Reads the files from the folder matching the incoming request name.
-
-#### Data definition
+## Endpoints
 
 ```yaml
-myRows:
-    path: "./testdata/data.csv"
+port: 8080
+enableCors: true
+endpoints:
+  /users:
+    get:
+      response:
+        - { id: 1, name: Alice }
+    post:
+      responseStatus: 201
+      response: { id: 2, name: "{{body.name}}" }
+      responseHeaders:
+        Location: /users/2
+  /users/:id:
+    get:
+      response: { id: "{{params.id}}" }
+  /users/me:
+    get:
+      response: { id: 1, name: Alice }
+```
+
+Supported methods: `get`, `post`, `put`, `patch`, `delete`, `head`, `options`,
+`trace`, and `any`. Names are case-insensitive. Explicit methods take precedence
+over `any` for the same path. Literal paths take precedence over parameterized
+paths, so `/users/me` wins over `/users/:id` regardless of YAML order.
+
+Dotted paths and identifiers work, including `/v1.0/status`, `/report.json`, and
+`/users/jane.doe`. Path parameters are URL-decoded. Trailing slashes are ignored
+when matching configured endpoints. Unmatched requests return 404.
+
+The original single-method format remains supported:
+
+```yaml
+endpoints:
+  /data:
+    verb: get
+    data: myRows
+    responseStatus: 200
+    responseContentType: application/json
+```
+
+### Response options
+
+| Option | Behavior |
+| --- | --- |
+| `response` | Inline JSON value or text. Objects, arrays, numbers, booleans, and null are serialized as JSON. |
+| `data` | Named file/CSV/folder source. Use `data` or `response`, not both. |
+| `responseStatus` | HTTP status, 200–599; defaults to 200. |
+| `responseContentType` | Explicit MIME type. Inline JSON defaults to `application/json`; strings and file readers default to `text/plain`. |
+| `responseHeaders` | Header names and string/number values; template values are supported. Connection/framing headers are server-managed. |
+| `delay` | Nonnegative response delay in milliseconds. |
+| `handler` | Named JavaScript handler for custom logic. |
+
+HEAD responses and statuses 204/304 have no body. Unexpected processing failures
+return 500. Malformed URLs and JSON request bodies return 400.
+
+### Templates
+
+Use `{{params.id}}`, `{{query.page}}`, `{{headers.x-request-id}}`, `{{body.name}}`,
+`{{method}}`, or `{{path}}` inside inline responses and response headers.
+
+A whole-value placeholder preserves the value's type: `"{{body.items}}"` can
+produce an array. Embedded placeholders produce text, such as
+`"Hello {{body.name}}"`. Templates recurse through JSON objects and arrays.
+
+Bodies with a JSON content type are parsed; other bodies are text. Request header
+names are lowercase. Repeated query parameters become arrays. Missing template
+values produce a descriptive 500 response. Templates perform property lookup;
+they do not evaluate JavaScript.
+
+### Request matching
+
+Use `match` to restrict an endpoint, or `variants` to select a response while
+keeping a default:
+
+```yaml
+endpoints:
+  /search:
+    post:
+      response: { results: [] }
+      variants:
+        - match:
+            query: { mode: restricted }
+            headers: { X-Role: guest }
+            body: { filter: { active: true } }
+          responseStatus: 403
+          response: { error: Access denied }
+```
+
+All specified conditions must match. Object conditions match a subset of fields;
+arrays and primitive values use exact equality. Header names are case-insensitive.
+The first matching variant wins and inherits the endpoint's response settings.
+Unmatched variants use the base response. A failed endpoint-level `match` skips
+that endpoint. Query values are strings (or arrays of strings).
+
+### Response sequences
+
+```yaml
+endpoints:
+  /job:
+    get:
+      sequence:
+        - responseStatus: 503
+          response: { state: retry }
+        - responseStatus: 503
+          response: { state: retry }
+        - response: { state: complete, step: "{{scenario.index}}" }
+      sequenceMode: hold
+```
+
+Each matched request reserves the next step before waiting for a handler or delay.
+`hold` (default) repeats the final step; `cycle` repeats the sequence. Step indexes
+start at zero. Each path/method definition has independent state, shared by its
+path parameter values. Steps inherit base response settings; overriding `response`
+replaces an inherited `data` source, and vice versa. Sequences and variants cannot
+be combined on one endpoint.
+
+Successful configuration reloads and the reset operation restart sequences.
+This supports repeatable retry, polling, and pagination tests.
+
+## Request history and assertions
+
+Enable the optional administration API:
+
+```yaml
+admin:
+  enabled: true
+  path: /__mockapi
+  historyLimit: 100
+  bodyLimit: 16384
+  # token: your-test-token
+```
+
+Without a token, administration is available to loopback clients only. Configure
+a token for access from outside the host/container and send
+`Authorization: Bearer your-test-token`. Cross-origin browser access without a
+token is rejected. Administration routes are reserved while enabled.
+
+| Request | Result |
+| --- | --- |
+| `GET /__mockapi/requests` | Recent requests, including headers, parsed body, path/query parameters, status, and duration. |
+| `GET /__mockapi/requests?method=POST&path=/users` | Filter retained requests by exact method/path. |
+| `POST /__mockapi/assert` | Check retained requests against a JSON assertion; 200 on success, 409 on mismatch, 400 on invalid input. |
+| `POST /__mockapi/reset` | Clear history and restart sequences and CSV readers. |
+
+Example assertion body:
+
+```json
+{
+  "match": { "method": "POST", "path": "/users", "body": { "name": "Alice" } },
+  "count": 1
+}
+```
+
+`match` also supports headers and query fields. Use exact `count`, or `min`/`max`.
+Without a count range, an assertion requires at least one match.
+
+History records completed mock requests, including unmatched requests and errors;
+docs, preflights, and administration calls are excluded. Old entries are evicted
+at `historyLimit`. Bodies exceeding `bodyLimit` are truncated and marked
+`bodyTruncated`; body assertions then operate on the retained text. Headers and
+payloads may contain credentials, so enable history only for suitable test data.
+History and scenario state are in memory and reset on a successful reload.
+
+Programmatic `Core` users can call `getRequests(match)`,
+`assertRequests(options)`, and `reset()` with the same behavior. Enable `admin`
+to record history even when using the programmatic accessors.
+
+## Data sources and custom handlers
+
+```yaml
+data:
+  myRows:
+    path: ./testdata/data.csv
     reader: csv
-    properties: 
-      - json
-      - seq
-      - 0
+    properties: [json, seq, 0]
 ```
-The previous example defines a data source called ```myRows```, which will read the data from the defined ```path```, using the ```csv``` handler, parsing each row as ```json```, reading the values in a ```sequential``` order, starting from record ```0```.
 
-#### Endpoint definition
+- `csv`: first row supplies property names. Format is `json` or `text` (row
+  arrays); direction is `seq` or `rand`; the third property is the starting row
+  index. Use `-1` to return all rows. Sequential reads wrap at the end.
+- `text`: returns file contents as UTF-8 text. JSON files can use this reader
+  together with `responseContentType: application/json`.
+- `folder`: the legacy `/files` endpoint can serve `/files/name.json` from its
+  configured folder. File requests stay inside that directory.
+
+When omitted, CSV properties default to `[json, rand, 0]`. Data paths are checked
+at startup/reload. Text and folder files are read per request; CSV is loaded into
+memory. Resetting CSV readers restarts sequential position; random reads remain
+random.
 
 ```yaml
-"/users":
-  verb: get
-  data: myRows
-  responseStatus: 200
-  responseContentType: "application/json"
+externalModulesPath: ./apiHandlers
+customHandlers:
+  custom: myCustomHandler
+endpoints:
+  /custom/:id:
+    get:
+      handler: custom
+      response: { source: mock }
 ```
-From the previous code snippet, we are defining an endpoint ```[MockAPI URL]:[PORT]/users```, which will accept ```get``` requests, answering always with ```200``` status code, using data from ```myRows``` data definition in ```JSON``` format.
-
-#### Path parameters
-
-Endpoints support path parameters using the ```:param``` syntax. Parameters are extracted from the URL and made available to custom handlers.
-
-```yaml
-"/users/:id":
-  verb: get
-  data: myRows
-  responseStatus: 200
-  responseContentType: "application/json"
-```
-
-A request to ```/users/42``` will match this endpoint and extract ```{ id: "42" }``` as path parameters. Multiple path parameters are supported (e.g., ```/users/:userId/orders/:orderId```).
-
-A custom handler can then use these parameters:
 
 ```javascript
-const process = (requestInformation, data) => {
-    const userId = requestInformation.params.id;
-    // requestInformation.params contains all extracted path parameters
-    // requestInformation.query contains all query string parameters
-    return JSON.stringify({ userId, data: JSON.parse(data) });
-};
-
-module.exports = { process };
+// apiHandlers/myCustomHandler.js
+module.exports.process = async (request, data) => ({
+  id: request.params.id,
+  payload: data ? JSON.parse(data) : null
+});
 ```
 
-Combining path and query parameters, a request to ```/users/42?fields=name,email``` would provide:
+Handlers may return a string, Buffer, JSON value, or a promise for one of those.
+The request includes `method`, configured `url`, actual `path`, raw `body`, parsed
+`json`, `headers`, `params`, and `query`. The second argument is the configured
+response/data; JSON objects are serialized for compatibility with existing handlers.
 
-```javascript
-requestInformation.params  // { id: "42" }
-requestInformation.query   // { fields: "name,email" }
-```
+CommonJS `.js`/`.cjs` and ES module `.mjs` handlers are supported. The server waits
+for module loading before listening. Reloading the config reloads handler entry
+files; changes to transitive imports may require a restart. Handler files are not
+watched independently. Exceptions/rejected promises become HTTP 500 responses;
+`HttpException` can supply a deliberate HTTP error status.
 
-#### Query parameters
+## Configuration reloads and limits
 
-Query string parameters are automatically parsed from the request URL. For example, a request to ```/users?role=admin&active=true``` will make ```{ role: "admin", active: "true" }``` available in custom handlers via ```requestInformation.query```.
+Configuration is validated and prepared before it replaces the running state.
+Invalid saves retain the previous configuration and log a field-specific error.
+File watching handles both direct saves and editor saves that replace the file.
+In-flight requests finish using their original configuration.
 
-#### Response delay
-
-Simulate slow API responses by adding a ```delay``` property (in milliseconds) to any endpoint:
+Changes to `port`, `host`, or `tls` require a restart and reject the reload.
 
 ```yaml
-"/users":
-  verb: get
-  data: myRows
-  delay: 2000
-  responseStatus: 200
-  responseContentType: "application/json"
+maxBodyBytes: 1048576  # default: 1 MiB; larger requests return 413
+requestTimeout: 30000 # default: 30 seconds to receive the request body
+log: verbose         # verbose, debug, error, or none
 ```
 
-The previous example will wait ```2000ms``` before sending the response, which is useful for testing loading states, spinners and timeout handling.
+`requestTimeout` limits incoming requests, not intentionally delayed responses.
+Malformed configuration, missing data, invalid handler exports, unavailable ports,
+or invalid TLS material cause startup to fail with a nonzero exit code.
+SIGINT/SIGTERM stop the watcher and close the server and its connections.
 
-#### Hot-reload
+## CORS, static files, and HTTPS
 
-MockAPI watches the ```.mockapi-config``` file for changes. When the file is saved, endpoints and data sources are automatically reloaded without restarting the server. This allows you to add, remove, or modify endpoints while the server is running.
+`enableCors: true` permits all origins; `false` disables CORS. Fine-grained example:
 
-#### OpenAPI docs
+```yaml
+enableCors:
+  origins: [http://localhost:3000]
+  methods: [GET, POST, OPTIONS]
+  headers: [Content-Type, Authorization]
+  credentials: true
+staticPath: ./public
+tls:
+  cert: ./certs/server.crt
+  key: ./certs/server.key
+```
 
-MockAPI can auto-generate OpenAPI docs from your configured endpoints and expose them with built-in routes:
+CORS preflights are answered automatically. Static files are a fallback for
+unmatched GET/HEAD requests, with MIME types inferred from extensions. Directory
+traversal and symlinks escaping the configured root are rejected.
 
-- ``/openapi.json`` - generated OpenAPI document
-- ``/docs`` - Swagger UI page powered by the generated document
+Omit `tls` for HTTP. When TLS is configured, both a valid certificate and key are
+required; MockAPI does not fall back to HTTP on certificate errors.
 
-These routes update automatically when `.mockapi-config` changes (hot-reload).
-The `/docs` page loads Swagger UI assets from `unpkg.com`.
+## OpenAPI and offline docs
 
-To customize or disable this feature, use the optional `openApi` section:
+`/openapi.json` serves an OpenAPI 3.1 document and `/docs` serves Swagger UI. All UI
+assets are served locally from the installed package; the online validator is
+disabled. No CDN access is required at runtime.
 
 ```yaml
 openApi:
   enabled: true
-  docsPath: "/docs"
-  specPath: "/openapi.json"
+  docsPath: /docs
+  specPath: /openapi.json
   info:
-    title: "My Mock API"
-    version: "1.0.0"
-    description: "Generated from MockAPI configuration."
+    title: My Mock API
+    version: 1.0.0
+    description: Local development API
 ```
 
-Disable docs completely:
+Use `openApi: false` to disable docs. Enabled docs paths are reserved. Endpoint
+metadata supports `summary`, `description`, `parameters`, `requestBody`,
+`responseSchema`, and `responseExample` using OpenAPI shapes. Inline response
+schemas/examples are generated automatically; templates and file/custom-handler
+responses may need explicit schemas/examples. Sequence/variant statuses and
+response headers are included. Metadata documents the API; it does not validate
+incoming requests against schemas.
 
-```yaml
-openApi:
-  enabled: false
-```
+## Docker and verification
 
-#### CORS configuration
-
-CORS can be configured in three ways:
-
-**Disabled** (default):
-```yaml
-enableCors: false
-```
-
-**Allow all** (same as previous versions):
-```yaml
-enableCors: true
-```
-
-**Fine-grained control** — specify allowed origins, methods, and headers:
-```yaml
-enableCors:
-  origins:
-    - "http://localhost:3000"
-    - "https://myapp.example.com"
-  methods:
-    - GET
-    - POST
-    - PUT
-  headers:
-    - Content-Type
-    - Authorization
-```
-
-When using fine-grained CORS, MockAPI automatically handles ```OPTIONS``` preflight requests. If the request origin is not in the allowed list, CORS headers are not set.
-
-#### Static file serving
-
-MockAPI can serve static files from a local directory. Add the ```staticPath``` property to your configuration:
-
-```yaml
-staticPath: "./public"
-```
-
-When a request does not match any configured endpoint, MockAPI will attempt to serve a matching file from the specified directory. The file's MIME type is determined automatically from its extension. Supported types include HTML, CSS, JavaScript, JSON, PNG, JPG, GIF, SVG, PDF, and more.
-
-For example, with ```staticPath: "./public"```, a request to ```/images/logo.png``` will serve the file at ```./public/images/logo.png```.
-
-#### HTTPS
-
-MockAPI supports HTTPS. Add a ```tls``` section to your configuration with the paths to your certificate and private key files:
-
-```yaml
-tls:
-  cert: "./certs/server.crt"
-  key: "./certs/server.key"
-```
-
-When TLS is configured, MockAPI starts an HTTPS server instead of HTTP. If the certificate files cannot be read, MockAPI falls back to HTTP and logs an error.
-
-To generate a self-signed certificate for local development:
-
-```bash
-openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 365 -nodes -subj "/CN=localhost"
-```
-
-#### Custom handlers
-
-A custom handler let you manipulate the data as your will. First, define the handler as follows:
-
-```yaml
-customHandlers:
-  "custom": 
-    "myCustomHandler"
-```
-The previous code defines a custom handler called ```custom``` and will use the script code called ```myCustomHandler```. The custom code must be placed inside of ```scripts``` folder and coded in JavaScript with NodeJS support.
-
-Your custom script must implement the following export format:
-
-```javascript
-module.exports = {
-    process: [Your function entry point]
-};
-```
-
-#### Setting up the log level
-
-MockAPI logs information into the execution console. There are different levels of logs that can be used.
-
-```yaml
-log: verbose
-  #debug <- Useful for custom handlers
-  #error <- Only exposes internal errors
-  #verbose <- Logs debug, information and errors
-  #none <- Turn off the logs
-```
-
-## MockAPI CLI
-
-MockAPI provides a small but helpful CLI. Type ```mockapi --help``` to get the available commands from the CLI once MockAPI is installed.
-
-#### The ```init``` command
-
-Once MockAPI is globally installed, you will need a configuration file with minimal information to be able of start mocking the API. The ```init``` command argument will lead you through different basic questions helping you to initialize this configuration file.
-
-```powershell
-mockapi --init
-```
-
-You can skip every question which will assign some default values to the configuration file. Later you could change these values using any text editor.
-
-## Running MockAPI with Docker
-
-MockAPI includes Docker support for running the application in a containerized environment.
-
-### Building the Docker image
-
-```bash
+```sh
 docker build -t mockapi .
+docker run --rm -p 3001:8001 mockapi
+docker compose up --build
 ```
 
-### Running with Docker
+The normal Compose service exposes the bundled API at `http://localhost:3001`.
+Debug mode exposes it on port 3000, with the inspector bound to host loopback:
 
-```bash
-docker run -p 3001:8001 -v $(pwd)/.mockapi-config:/usr/src/app/.mockapi-config mockapi
+```sh
+docker compose -f docker-compose.debug.yml up --build
 ```
 
-This maps port `3001` on your host to port `8001` inside the container and mounts your local configuration file into the container. Adjust the port mapping to match the `port` value in your `.mockapi-config` file.
+Mount a custom config and any fixture/handler directories when needed. For example,
+from a POSIX shell:
 
-### Running with Docker Compose
-
-#### Production mode
-
-```bash
-docker compose up
+```sh
+docker run --rm -p 3001:8001 \
+  -v "$PWD/.mockapi-config:/usr/src/app/.mockapi-config:ro" \
+  -v "$PWD/testdata:/usr/src/app/testdata:ro" \
+  -v "$PWD/apiHandlers:/usr/src/app/apiHandlers:ro" mockapi
 ```
 
-This builds and starts MockAPI using the `docker-compose.yml` file, exposing the API on port `3001`.
+The image runs as the `node` user; mounted files must be readable by that user.
+Match the container port to the configuration's `port`. For editor saves that
+replace the config file, mounting its parent directory preserves watcher behavior
+more reliably than a single-file mount.
 
-#### Debug mode
-
-```bash
-docker compose -f docker-compose.debug.yml up
+```sh
+npm test
+npm run test:coverage
+docker run --rm --network none mockapi npm test
 ```
 
-This starts MockAPI with the Node.js inspector enabled on port `9229`, allowing you to attach a debugger. The API is available on port `3000`.
+Tests cover configuration, routing, responses, scenarios, history/assertions,
+HTTP limits, CORS, file/stream failures, HTTPS, async handlers, real CLI processes,
+and filesystem reloads. CI runs on Windows/Linux with Node 22/24 and tests the
+Docker image with external networking disabled.
 
-### Mounting custom data and handlers
-
-To use your own data files and custom handlers with Docker, mount them as volumes:
-
-```bash
-docker run -p 3001:8001 \
-  -v $(pwd)/.mockapi-config:/usr/src/app/.mockapi-config \
-  -v $(pwd)/testdata:/usr/src/app/testdata \
-  -v $(pwd)/apiHandlers:/usr/src/app/apiHandlers \
-  mockapi
-```
+See [CHANGELOG.md](CHANGELOG.md) for release history.

@@ -109,6 +109,7 @@ describe('Core HTTP Server', () => {
         const core = new Core(createLogger(), {
             port,
             enableCors: false,
+            customHandlers: { testHandler: 'stub' },
             endpoints: {
                 '/users/:id': {
                     verb: 'get',

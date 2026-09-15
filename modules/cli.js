@@ -1,112 +1,61 @@
-const readline = require('readline');
+const readline = require('node:readline');
+const fs = require('node:fs');
 const YAML = require('yaml');
-const fs = require('fs');
+const { prepareConfiguration } = require('./configuration');
 
 class CLI {
-
-    _configurationFilePath = "";
-    _arguments = [];
-    _commands = {
-        "--help": this._helpCommand,
-        "help": this._helpCommand,
-        "init": this._initCommand,
-        "--init": this._initCommand
-    };
-    _configTemplate = {
-        port: 8080,
-        enableCors: true,
-        openApi: {
-          enabled: true
-        },
-        data: {
-          myRows: { path: 'YOUR FOLDER', reader: 'folder' }
-        },
-        endpoints: {
-          '/data': {
-            verb: 'get',
-            data: 'myRows',
-            responseStatus: 200,
-            responseContentType: 'application/json'
-          }
-        },
-        log: 'verbose'
-    };
-
-    constructor(configurationFilePath) {
+    constructor(configurationFilePath, args = process.argv.slice(2)) {
         this._configurationFilePath = configurationFilePath;
-        this._arguments = process.argv.slice(2);
+        this.args = [...args];
     }
 
-    _initCommand() {
-        let configTemplate = this._configTemplate;
+    hasCommands() { return this.args.length > 0; }
 
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        });
-
-        console.log("Creating a basic configuration file");
-        console.log("");
-
-        rl.question(`Set MockAPI listening port (8080): `, (port) => {
-            rl.question(`Do you want to enable CORS? Y/n: `, (enableCors) => {
-                rl.question(`Do you want to include default endpoint? Y/n: `, (defaultEndpoint) => {
-                    const configPort = port || 8080;
-                    const configEnableCors = enableCors === "Y" || enableCors === "y" || enableCors === "";
-                    const configDefaultEndpoint = defaultEndpoint === "Y" || defaultEndpoint === "y" || defaultEndpoint === "";
-
-                    configTemplate.port = configPort;
-                    configTemplate.enableCors = configEnableCors;
-
-                    if (configDefaultEndpoint === false) {
-                        delete configTemplate.endpoints;
-                        delete configTemplate.data;
-                    }
-
-                    const configFile = YAML.stringify(configTemplate);
-
-                    fs.writeFile(this._configurationFilePath, configFile, (err) => {
-                        if (err) {
-                            console.log(err);
-                        } else {
-                            console.log("Configuration file created");
-                        }
-                        rl.close();
-                        process.exit(err ? 1 : 0);
-                    });
-                });
-            });        
-        });
-
-        return false;
-    }
-
-    _helpCommand() {
-        console.log("Run MockAPI:");
-        console.log("mockapi\n");
-        console.log("Command execution:\n");
-        console.log("mockapi <command>");
-        console.log("");
-        console.log("--help, help    shows this help");
-        console.log("--init, init    creates a basic configuration file");
-        console.log("");
-        return true;
-    }
-
-    hasCommands() { return this._arguments.length > 0; }
-
-    executeCommandLine() {
-        if (this._arguments.length > 0) {
-
-            let command = this._commands["--help"];
-
-            if (this._commands[this._arguments[0]] !== undefined) {
-                command = this._commands[this._arguments[0]];
-            }
-
-            const syncExit = command.apply(this);
-            return syncExit;
+    static parse(args) {
+        const result = { command: 'start' };
+        for (let i = 0; i < args.length; i++) {
+            const arg = args[i];
+            if (['init', '--init', 'validate', '--validate', 'help', '--help', '--version'].includes(arg)) {
+                if (result.command !== 'start') throw new Error('Specify only one command');
+                result.command = arg.replace(/^--/, '');
+            } else if (['--yes', '-y', '--force'].includes(arg)) result[arg === '--force' ? 'force' : 'yes'] = true;
+            else if (['--config', '--port'].includes(arg)) {
+                if (!args[i + 1] || args[i + 1].startsWith('--')) throw new Error(`${arg} requires a value`);
+                result[arg.slice(2)] = args[++i];
+            } else throw new Error(`Unknown argument '${arg}'. Run mockapi --help.`);
         }
+        if ((result.yes || result.force || result.port !== undefined) && result.command !== 'init') throw new Error('--yes, --force, and --port are init options');
+        return result;
+    }
+
+    async init(options) {
+        if (!options.force && fs.existsSync(this._configurationFilePath)) throw new Error('Configuration already exists. Use --force to overwrite it.');
+        let port = options.port ?? 8080;
+        let cors = true;
+        let endpoint = true;
+        if (!options.yes) {
+            const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: false });
+            const answers = rl[Symbol.asyncIterator]();
+            const ask = async prompt => {
+                process.stdout.write(prompt);
+                const answer = await answers.next();
+                return answer.done ? '' : answer.value.trim();
+            };
+            try {
+                port = await ask(`Set MockAPI listening port (${port}): `) || port;
+                cors = !/^n(?:o)?$/i.test(await ask('Enable CORS? Y/n: '));
+                endpoint = !/^n(?:o)?$/i.test(await ask('Include a default endpoint? Y/n: '));
+            } finally { rl.close(); }
+        }
+        if (!/^\d+$/.test(String(port)) || Number(port) < 1 || Number(port) > 65535) throw new Error('port: must be an integer from 1 to 65535');
+        const config = { port: Number(port), enableCors: cors, endpoints: endpoint ? { '/data': { get: { response: { message: 'MockAPI is ready' } } } } : {}, log: 'verbose' };
+        prepareConfiguration(config);
+        await fs.promises.writeFile(this._configurationFilePath, YAML.stringify(config), { flag: options.force ? 'w' : 'wx' });
+        console.log(`Configuration created: ${this._configurationFilePath}`);
+    }
+
+    help() {
+        console.log('MockAPI\n\nmockapi [--config FILE]\nmockapi init [--yes] [--port NUMBER] [--force] [--config FILE]\nmockapi validate [--config FILE]\nmockapi --version\n\ninit creates a working configuration; --force permits overwriting an existing file.\nvalidate checks configuration, data files, TLS, and custom handler exports.');
     }
 }
 

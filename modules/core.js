@@ -1,380 +1,320 @@
+const http = require('node:http');
+const https = require('node:https');
+const fs = require('node:fs');
+const path = require('node:path');
+const { pipeline } = require('node:stream/promises');
+const { timingSafeEqual } = require('node:crypto');
 const parser = require('./urlParser');
-const http = require('http');
-const https = require('https');
-const path = require('path');
-const fs = require('fs');
-const constants = require('./constants');
-const handlerLoader = require('./configurationParser');
 const openApi = require('./openApi');
+const HttpException = require('./HttpException');
+const { prepareConfiguration, mergeResponse, restartRequired } = require('./configuration');
+const { matches, render, assertion } = require('./requestTools');
 
 const MIME_TYPES = {
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'application/javascript',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.svg': 'image/svg+xml',
-    '.ico': 'image/x-icon',
-    '.txt': 'text/plain',
-    '.xml': 'application/xml',
-    '.pdf': 'application/pdf'
+    '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'application/javascript',
+    '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.txt': 'text/plain',
+    '.xml': 'application/xml', '.pdf': 'application/pdf', '.woff2': 'font/woff2'
 };
 
 class Core {
-
-    _logger = null;
-    _port = 0;
-    _cors = null;
-    _endpointList = [];
-    _logLevel = ""
-    _modulesProxy = null;
-    _configurations = null;
-    _data = null;
-    _staticPath = null;
-    _connections = new Set();
-    _tls = null;
-    _openApi = null;
-    _openApiSpec = null;
-
-    constructor(logger, configurations, modulesProxy) {
-        this._configurations = configurations;
+    constructor(logger, configurations, modulesProxy, basePath = process.cwd()) {
         this._logger = logger;
-        this._port = configurations.port;
-        this._cors = this._parseCors(configurations.enableCors);
-        this._endpointList = configurations.endpoints;
-        this._modulesProxy = modulesProxy;
-        this._staticPath = configurations.staticPath || null;
-        this._tls = this._parseTls(configurations.tls);
-        this._openApi = this._parseOpenApi(configurations.openApi);
-
-        this._data = configurations.data || { };
-        handlerLoader.loadHandlersFromConfiguration(this._data);
-        this._refreshOpenApiSpec();
+        this._basePath = basePath;
+        this._connections = new Set();
+        this._history = [];
+        this._requestId = 0;
+        this._historyGeneration = 0;
+        this._state = this._prepare(configurations, modulesProxy);
     }
 
-    _parseTls(tlsConfig) {
-        if (!tlsConfig || !tlsConfig.cert || !tlsConfig.key) return null;
-
-        try {
-            return {
-                cert: fs.readFileSync(tlsConfig.cert),
-                key: fs.readFileSync(tlsConfig.key)
-            };
-        } catch (error) {
-            this._logger.error(`Failed to load TLS certificates: ${error.message}`);
-            return null;
-        }
-    }
-
-    _parseCors(corsConfig) {
-        if (!corsConfig) return null;
-
-        if (corsConfig === true) {
-            return { origins: '*', methods: '*', headers: '*' };
-        }
-
-        return {
-            origins: corsConfig.origins || '*',
-            methods: corsConfig.methods || '*',
-            headers: corsConfig.headers || '*'
-        };
-    }
-
-    _normalizeRoutePath(routePath, fallbackPath) {
-        if (typeof routePath !== 'string' || routePath.trim() === '') return fallbackPath;
-
-        let normalized = routePath.trim();
-
-        if (!normalized.startsWith('/')) {
-            normalized = `/${normalized}`;
-        }
-
-        if (normalized.length > 1 && normalized.endsWith('/')) {
-            normalized = normalized.slice(0, -1);
-        }
-
-        return normalized;
-    }
-
-    _parseOpenApi(openApiConfig) {
-        const defaultConfig = {
-            enabled: true,
-            docsPath: '/docs',
-            specPath: '/openapi.json',
-            title: 'MockAPI',
-            version: '1.0.0',
-            description: 'OpenAPI definition generated from .mockapi-config.'
-        };
-
-        if (openApiConfig === false) {
-            return {
-                ...defaultConfig,
-                enabled: false
-            };
-        }
-
-        if (openApiConfig === true || openApiConfig === undefined || openApiConfig === null) {
-            return defaultConfig;
-        }
-
-        if (typeof openApiConfig !== 'object') {
-            return defaultConfig;
-        }
-
-        const infoConfig = openApiConfig.info || {};
-
-        return {
-            enabled: openApiConfig.enabled !== false,
-            docsPath: this._normalizeRoutePath(openApiConfig.docsPath, defaultConfig.docsPath),
-            specPath: this._normalizeRoutePath(openApiConfig.specPath, defaultConfig.specPath),
-            title: infoConfig.title || openApiConfig.title || defaultConfig.title,
-            version: infoConfig.version || openApiConfig.version || defaultConfig.version,
-            description: infoConfig.description || openApiConfig.description || defaultConfig.description
-        };
-    }
-
-    _refreshOpenApiSpec() {
-        this._openApiSpec = openApi.buildSpec(this._openApi, this._endpointList);
-    }
-
-    _applyCorsHeaders(request, response) {
-        if (!this._cors) return false;
-
-        const origin = request.headers['origin'] || '*';
-        const allowedOrigin = this._cors.origins === '*'
-            ? '*'
-            : (this._cors.origins.includes(origin) ? origin : null);
-
-        if (!allowedOrigin) return false;
-
-        response.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-
-        const methods = this._cors.methods === '*'
-            ? 'GET, POST, PUT, DELETE, PATCH, OPTIONS'
-            : (Array.isArray(this._cors.methods) ? this._cors.methods.join(', ') : this._cors.methods);
-        response.setHeader('Access-Control-Allow-Methods', methods);
-
-        const headers = this._cors.headers === '*'
-            ? 'Content-Type, Authorization, X-Requested-With'
-            : (Array.isArray(this._cors.headers) ? this._cors.headers.join(', ') : this._cors.headers);
-        response.setHeader('Access-Control-Allow-Headers', headers);
-
-        return true;
-    }
-
-    _serveStaticFile(request, response, urlPath) {
-        const safePath = path.normalize(urlPath).replace(/^(\.\.[/\\])+/, '');
-        const filePath = path.join(this._staticPath, safePath);
-        const resolvedPath = path.resolve(filePath);
-        const resolvedStatic = path.resolve(this._staticPath);
-
-        if (!resolvedPath.startsWith(resolvedStatic)) {
-            response.statusCode = constants.HTTP_STATUS_CODES.FORBIDDEN;
-            response.end('Forbidden');
-            return;
-        }
-
-        if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
-            return false;
-        }
-
-        const ext = path.extname(resolvedPath).toLowerCase();
-        const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
-
-        this._logger.info(`Serving static file: ${resolvedPath}`);
-
-        response.statusCode = constants.HTTP_STATUS_CODES.OK;
-        response.setHeader('Content-Type', mimeType);
-        this._applyCorsHeaders(request, response);
-
-        const stream = fs.createReadStream(resolvedPath);
-        stream.pipe(response);
-
-        return true;
-    }
-
-    _handleOpenApiRequest(request, response, pathName) {
-        if (!this._openApi || this._openApi.enabled === false || request.method !== 'GET') {
-            return false;
-        }
-
-        if (pathName === this._openApi.specPath) {
-            response.statusCode = constants.HTTP_STATUS_CODES.OK;
-            response.setHeader('Content-Type', 'application/json');
-            this._applyCorsHeaders(request, response);
-            response.end(JSON.stringify(this._openApiSpec, null, 2));
-            return true;
-        }
-
-        if (pathName === this._openApi.docsPath || pathName === `${this._openApi.docsPath}/`) {
-            response.statusCode = constants.HTTP_STATUS_CODES.OK;
-            response.setHeader('Content-Type', 'text/html; charset=utf-8');
-            this._applyCorsHeaders(request, response);
-            response.end(openApi.buildDocsPage(this._openApi));
-            return true;
-        }
-
-        return false;
+    _prepare(configurations, modulesProxy) {
+        const prepared = prepareConfiguration(configurations, this._basePath);
+        return { ...prepared, modulesProxy, spec: openApi.buildSpec(prepared.openApi, prepared.routes), sequences: new Map() };
     }
 
     run() {
-        const self = this;
-
-        const requestHandler = (request, response) => {
-
-            // Handle CORS preflight requests
-            if (request.method === 'OPTIONS' && self._cors) {
-                self._applyCorsHeaders(request, response);
-                response.statusCode = constants.HTTP_STATUS_CODES.NO_CONTENT;
-                response.end();
-                return;
-            }
-
-            const urlInformation = parser.parse(request.url);
-
-            if (self._handleOpenApiRequest(request, response, urlInformation.pathname)) {
-                return;
-            }
-
-            let bodyPayload = [];
-        
-            request.on('data', (chunk) => {
-                bodyPayload.push(chunk);
-            }).on('end', () => {
-                bodyPayload = Buffer.concat(bodyPayload).toString();
-        
-                self._logger.info(`Requesting: ${urlInformation.base} - Verb: ${request.method}`);
-        
-                if (bodyPayload !== '') {
-                    self._logger.info(`Incoming body: ${bodyPayload}`);
-                }
-        
-                let actionFound = false;
-                let responseBody = null;
-                let responseStatus = null;
-                let contentType = null;
-                let delay = 0;
-        
-                for (const endpointUrl in self._endpointList) {
-                    if (Object.hasOwnProperty.call(self._endpointList, endpointUrl)) {
-                        const endpoint = self._endpointList[endpointUrl];
-                        const requestMethod = request.method.toLowerCase();
-                        
-                        const pathResult = parser.matchPath(endpointUrl, urlInformation.base);
-
-                        if (
-                            pathResult.match && 
-                            (endpoint.verb === "any" || endpoint.verb.toLowerCase() === requestMethod)
-                        ) {
-        
-                            if (endpoint.data !== undefined && self._data[endpoint.data] === undefined) {
-                                self._logger.error("No matching data variable for this request");
-                                break;
-                            }
-
-                            // Merge path params and query params into urlInformation
-                            urlInformation.params = pathResult.params;
-                            urlInformation.query = Object.fromEntries(urlInformation.search);
-        
-                            actionFound = true;
-                            contentType = endpoint.responseContentType;
-                            delay = endpoint.delay || 0;
-        
-                            try {
-                                const processData = endpoint.data === undefined ?
-                                    "" : 
-                                    self._data[endpoint.data].dataHandler(urlInformation);
-        
-                                responseBody = endpoint.handler !== undefined ?
-                                    self._modulesProxy.execute(endpoint.handler, { 
-                                        method: requestMethod, 
-                                        url: endpointUrl, 
-                                        body: bodyPayload,
-                                        params: urlInformation.params,
-                                        query: urlInformation.query
-                                    }, processData) : processData;
-                                
-                                responseStatus = endpoint.responseStatus;
-                            } catch(ex) {
-                                self._logger.error(`${ex.message}`);
-        
-                                responseStatus = ex.httpStatusCode;
-                                responseBody = ex.message;
-                            }
-                            
-                            break;
-                        }
-                    }
-                }
-        
-                const sendResponse = () => {
-                    // Try static file serving before returning 404
-                    if (!actionFound && self._staticPath) {
-                        const served = self._serveStaticFile(request, response, urlInformation.pathname);
-                        if (served !== false) return;
-                    }
-
-                    response.statusCode = responseStatus || 
-                        (!actionFound ? 
-                            constants.HTTP_STATUS_CODES.NOT_FOUND : 
-                            constants.HTTP_STATUS_CODES.OK);
-        
-                    response.setHeader('Content-Type', contentType || constants.DEFAULT_CONTENT_TYPE);
-                    
-                    self._applyCorsHeaders(request, response);
-        
-                    response.end(responseBody);
-                };
-
-                if (delay > 0) {
-                    self._logger.info(`Delaying response by ${delay}ms`);
-                    setTimeout(sendResponse, delay);
-                } else {
-                    sendResponse();
-                }
-            });
+        if (this._server) throw new Error('Server has already been started');
+        const handler = (request, response) => {
+            const state = this._state;
+            this._handle(request, response, state).catch(error => this._error(response, error));
         };
+        this._server = this._state.tls ? https.createServer(this._state.tls, handler) : http.createServer(handler);
+        this._server.requestTimeout = this._state.config.requestTimeout;
+        this._server.headersTimeout = Math.min(60000, this._state.config.requestTimeout);
+        this._server.on('connection', socket => {
+            this._connections.add(socket);
+            socket.on('close', () => this._connections.delete(socket));
+        });
+        this._server.on('error', error => this._logger.error(`Server error: ${error.message}`));
+        this._server.listen(this._state.config.port, this._state.config.host);
+        return this._server;
+    }
 
-        this._server = this._tls
-            ? https.createServer(this._tls, requestHandler)
-            : http.createServer(requestHandler);
+    _error(response, error) {
+        this._logger.error(error.message || String(error));
+        if (response.destroyed || response.writableEnded) return;
+        if (response.headersSent) { response.destroy(); return; }
+        const status = Number.isInteger(error.httpStatusCode) && error.httpStatusCode >= 400 && error.httpStatusCode <= 599 ? error.httpStatusCode : 500;
+        for (const name of response.getHeaderNames()) {
+            if (!name.startsWith('access-control-') && !['vary', 'connection'].includes(name)) response.removeHeader(name);
+        }
+        this._send(response, status, { error: error.message || 'Internal server error' });
+    }
 
-        this._server.listen(self._port);
+    _send(response, status, body, headers = {}, contentType) {
+        if (response.destroyed || response.writableEnded) return;
+        const json = body !== undefined && body !== null && typeof body === 'object' && !Buffer.isBuffer(body);
+        const payload = body === undefined ? '' : Buffer.isBuffer(body) ? body : json || body === null || typeof body === 'boolean' || typeof body === 'number' ? JSON.stringify(body) : String(body);
+        response.statusCode = status;
+        response.setHeader('Content-Type', contentType || (json || body === null || typeof body === 'boolean' || typeof body === 'number' ? 'application/json' : 'text/plain'));
+        for (const [name, value] of Object.entries(headers)) response.setHeader(name, String(value));
+        response.end(status === 204 || status === 304 ? undefined : payload);
+    }
 
-        this._server.on('connection', (socket) => {
-            self._connections.add(socket);
-            socket.on('close', () => self._connections.delete(socket));
+    _cors(request, response, state) {
+        const cors = state.config.enableCors;
+        if (!cors) return;
+        const options = cors === true ? {} : cors;
+        const origins = options.origins ?? '*';
+        const origin = request.headers.origin;
+        const allowed = origins === '*' || (Array.isArray(origins) ? origins.includes(origin) : origins === origin);
+        if (!allowed) return;
+        if (origins !== '*' || options.credentials) response.setHeader('Vary', 'Origin');
+        if (options.credentials && !origin) return;
+        response.setHeader('Access-Control-Allow-Origin', origins === '*' && !options.credentials ? '*' : origin);
+        const list = (value, fallback) => value === undefined || value === '*' ? fallback : Array.isArray(value) ? value.join(', ') : value;
+        response.setHeader('Access-Control-Allow-Methods', list(options.methods, 'GET, HEAD, POST, PUT, DELETE, PATCH, OPTIONS'));
+        response.setHeader('Access-Control-Allow-Headers', list(options.headers, request.headers['access-control-request-headers'] || 'Content-Type, Authorization, X-Requested-With'));
+        if (options.credentials) response.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
+    _readBody(request, response, state) {
+        return new Promise((resolve, reject) => {
+            const chunks = [];
+            let bytes = 0;
+            let settled = false;
+            const finish = (error, body) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                if (error) { chunks.length = 0; reject(error); }
+                else resolve(body);
+            };
+            const timer = setTimeout(() => {
+                if (!response.headersSent) response.setHeader('Connection', 'close');
+                finish(new HttpException(408, 'Request body timed out'));
+                request.resume();
+            }, state.config.requestTimeout);
+            timer.unref();
+            request.on('data', chunk => {
+                if (settled) return;
+                bytes += chunk.length;
+                if (bytes > state.config.maxBodyBytes) {
+                    response.setHeader('Connection', 'close');
+                    finish(new HttpException(413, `Request body exceeds ${state.config.maxBodyBytes} bytes`));
+                    return;
+                }
+                chunks.push(chunk);
+            });
+            request.on('end', () => finish(null, Buffer.concat(chunks).toString('utf8')));
+            request.on('error', error => finish(error));
+            request.on('aborted', () => finish(new HttpException(400, 'Request aborted')));
+            if (Number(request.headers['content-length']) > state.config.maxBodyBytes) {
+                response.setHeader('Connection', 'close');
+                finish(new HttpException(413, `Request body exceeds ${state.config.maxBodyBytes} bytes`));
+                request.resume();
+            }
         });
     }
 
-    reload(configurations) {
-        this._configurations = configurations;
-        this._port = configurations.port;
-        this._cors = this._parseCors(configurations.enableCors);
-        this._endpointList = configurations.endpoints;
-        this._staticPath = configurations.staticPath || null;
-        this._openApi = this._parseOpenApi(configurations.openApi);
+    async _static(request, response, root, urlPath) {
+        if (!['GET', 'HEAD'].includes(request.method)) return false;
+        let decoded;
+        try { decoded = decodeURIComponent(urlPath); } catch { throw new HttpException(400, 'Malformed URL encoding'); }
+        if (decoded.includes('\0')) throw new HttpException(400, 'Invalid file path');
+        const resolvedRoot = await fs.promises.realpath(root);
+        const target = path.resolve(resolvedRoot, '.' + decoded.replace(/\\/g, '/'));
+        const inside = file => {
+            const relative = path.relative(resolvedRoot, file);
+            return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+        };
+        if (!inside(target)) throw new HttpException(403, 'Forbidden');
+        let real;
+        try {
+            real = await fs.promises.realpath(target);
+            if (!inside(real)) throw new HttpException(403, 'Forbidden');
+            if (!(await fs.promises.stat(real)).isFile()) return false;
+        } catch (error) {
+            if (['ENOENT', 'ENOTDIR'].includes(error.code)) return false;
+            throw error;
+        }
+        const file = await fs.promises.open(real, 'r');
+        response.statusCode = 200;
+        response.setHeader('Content-Type', MIME_TYPES[path.extname(real).toLowerCase()] || 'application/octet-stream');
+        if (request.method === 'HEAD') { await file.close(); response.end(); return true; }
+        await pipeline(file.createReadStream(), response);
+        return true;
+    }
 
-        this._data = configurations.data || {};
-        handlerLoader.loadHandlersFromConfiguration(this._data);
-        this._refreshOpenApiSpec();
+    async _docs(request, response, state, pathname) {
+        if (!state.openApi.enabled || !['GET', 'HEAD'].includes(request.method)) return false;
+        if (pathname === state.openApi.specPath) { this._send(response, 200, state.spec); return true; }
+        if (pathname === state.openApi.docsPath || pathname === state.openApi.docsPath + '/') {
+            this._send(response, 200, openApi.buildDocsPage(state.openApi), {}, 'text/html; charset=utf-8');
+            return true;
+        }
+        const assetPrefix = state.openApi.docsPath.replace(/\/$/, '') + '/assets/';
+        if (pathname.startsWith(assetPrefix)) {
+            const asset = pathname.slice(assetPrefix.length);
+            if (!['swagger-ui.css', 'swagger-ui-bundle.js'].includes(asset)) throw new HttpException(404, 'Asset not found');
+            return this._static(request, response, path.dirname(require.resolve('swagger-ui-dist/package.json')), '/' + asset);
+        }
+        return false;
+    }
 
+    _authorize(request, state) {
+        if (state.admin.token) {
+            const expected = Buffer.from('Bearer ' + state.admin.token);
+            const supplied = Buffer.from(request.headers.authorization || '');
+            if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new HttpException(401, 'Admin token required');
+        } else {
+            const address = request.socket.remoteAddress || '';
+            if (!(address === '::1' || /^(::ffff:)?127\./.test(address))) throw new HttpException(403, 'Remote admin access requires a configured token');
+        }
+        if (request.headers.origin && !state.admin.token && request.headers.origin !== `${request.socket.encrypted ? 'https' : 'http'}://${request.headers.host}`) throw new HttpException(403, 'Cross-origin admin access requires a token');
+    }
+
+    async _admin(request, response, state, url) {
+        if (!state.admin.enabled || !(url.pathname === state.admin.path || url.pathname.startsWith(state.admin.path + '/'))) return false;
+        this._authorize(request, state);
+        const endpoint = url.pathname.slice(state.admin.path.length);
+        if (endpoint === '/requests' && request.method === 'GET') {
+            const match = Object.fromEntries(url.searchParams);
+            if (Object.keys(match).some(key => !['method', 'path'].includes(key))) throw new HttpException(400, 'Request filters support method and path');
+            this._send(response, 200, { requests: this.getRequests(match), limit: state.admin.historyLimit });
+        } else if (endpoint === '/assert' && request.method === 'POST') {
+            const body = await this._readBody(request, response, state);
+            let options;
+            try { options = JSON.parse(body); } catch { throw new HttpException(400, 'Assertion requires a JSON body'); }
+            const result = this.assertRequests(options);
+            this._send(response, result.passed ? 200 : 409, result);
+        } else if (endpoint === '/reset' && request.method === 'POST') {
+            await this._readBody(request, response, state);
+            this.reset();
+            this._send(response, 200, { reset: true });
+        } else throw new HttpException(404, 'Admin endpoint not found');
+        return true;
+    }
+
+    async _handle(request, response, state) {
+        let url;
+        try { url = new URL(request.url, 'http://localhost'); decodeURIComponent(url.pathname); } catch { throw new HttpException(400, 'Malformed URL'); }
+        if (await this._admin(request, response, state, url)) return;
+        this._cors(request, response, state);
+        if (request.method === 'OPTIONS' && state.config.enableCors && request.headers.origin && request.headers['access-control-request-method']) { this._send(response, 204); return; }
+        if (await this._docs(request, response, state, url.pathname)) return;
+        const started = Date.now();
+        const generation = this._historyGeneration;
+        const record = { id: ++this._requestId, timestamp: new Date(started).toISOString(), method: request.method, path: url.pathname, url: request.url, headers: { ...request.headers }, query: parser.query(url.searchParams), params: {}, body: '' };
+        if (state.admin.enabled) response.once('finish', () => {
+            if (generation !== this._historyGeneration) return;
+            record.status = response.statusCode;
+            record.duration = Date.now() - started;
+            this._history.push(record);
+            if (this._history.length > state.admin.historyLimit) this._history.splice(0, this._history.length - state.admin.historyLimit);
+        });
+        const rawBody = await this._readBody(request, response, state);
+        let body = rawBody;
+        if (rawBody && /(?:^|[+/])json(?:;|$)/i.test(request.headers['content-type'] || '')) {
+            try { body = JSON.parse(rawBody); } catch { throw new HttpException(400, 'Invalid JSON request body'); }
+        }
+        record.bodyTruncated = Buffer.byteLength(rawBody) > state.admin.bodyLimit;
+        record.body = record.bodyTruncated ? Buffer.from(rawBody).subarray(0, state.admin.bodyLimit).toString('utf8') : body;
+        const context = { method: request.method.toLowerCase(), path: url.pathname, headers: request.headers, query: record.query, body, params: {} };
+        const info = parser.parse(request.url);
+        let selected;
+        // The full URL wins. The legacy filename convention is limited to folder data sources.
+        for (const legacyFolder of [false, true]) {
+            for (const route of state.routes) {
+                if (route.method !== 'any' && route.method !== context.method) continue;
+                if (legacyFolder && state.data[route.definition.data]?.reader !== 'folder') continue;
+                const result = parser.matchPath(route.path, legacyFolder ? info.base : url.pathname);
+                if (!result.match) continue;
+                context.params = result.params;
+                if (!matches(route.definition.match, context)) continue;
+                selected = route;
+                break;
+            }
+            if (selected) break;
+        }
+        if (!selected) {
+            if (state.config.staticPath && await this._static(request, response, state.config.staticPath, url.pathname)) return;
+            this._send(response, 404, { error: 'No matching endpoint' });
+            return;
+        }
+        record.params = context.params;
+        let definition = selected.definition;
+        if (definition.variants) {
+            const variant = definition.variants.find(item => matches(item.match, context));
+            if (variant) {
+                const { match, ...override } = variant;
+                definition = mergeResponse(definition, override);
+            }
+        }
+        if (definition.sequence) {
+            const counter = state.sequences.get(selected.key) || 0;
+            const index = definition.sequenceMode === 'cycle' ? counter % definition.sequence.length : Math.min(counter, definition.sequence.length - 1);
+            state.sequences.set(selected.key, definition.sequenceMode === 'cycle' ? (index + 1) % definition.sequence.length : Math.min(counter + 1, definition.sequence.length - 1));
+            context.scenario = { index };
+            definition = mergeResponse(definition, definition.sequence[index]);
+        }
+        let payload;
+        if (Object.hasOwn(definition, 'response')) payload = render(definition.response, context);
+        else if (definition.data !== undefined) payload = state.data[definition.data].dataHandler({ ...info, params: context.params, query: context.query });
+        else payload = '';
+        if (definition.handler !== undefined) {
+            if (!state.modulesProxy) throw new HttpException(500, 'Custom handlers have not been loaded');
+            payload = await state.modulesProxy.execute(definition.handler, { method: context.method, url: selected.path, path: context.path, body: rawBody, json: typeof body === 'object' ? body : undefined, headers: context.headers, params: context.params, query: context.query }, typeof payload === 'object' ? JSON.stringify(payload) : payload);
+        }
+        const headers = render(definition.responseHeaders || {}, context);
+        if (response.destroyed || response.writableEnded) return;
+        if (definition.delay) await new Promise(resolve => {
+            const done = () => { clearTimeout(timer); response.off('close', done); resolve(); };
+            const timer = setTimeout(done, definition.delay);
+            response.once('close', done);
+        });
+        this._logger.info(`${request.method} ${url.pathname} -> ${definition.responseStatus || 200}`);
+        this._send(response, definition.responseStatus || 200, payload, headers, definition.responseContentType);
+    }
+
+    reload(configurations, modulesProxy = this._state.modulesProxy) {
+        const next = this._prepare(configurations, modulesProxy);
+        const changes = restartRequired(this._state.config, next.config);
+        if (this._server && changes.length) throw new Error(`Restart required to change ${changes.join(', ')}`);
+        this._state = next;
+        this._history = [];
+        this._historyGeneration++;
+        if (this._server) {
+            this._server.requestTimeout = next.config.requestTimeout;
+            this._server.headersTimeout = Math.min(60000, next.config.requestTimeout);
+        }
         this._logger.info('Configuration reloaded');
     }
 
-    stop(callback) {
-        if (this._server) {
-            this._server.close(callback);
-            for (const socket of this._connections) {
-                socket.destroy();
-            }
-            this._connections.clear();
-        } else if (callback) {
-            callback();
-        }
+    getRequests(match = {}) { return structuredClone(this._history.filter(request => matches(match, request))); }
+    assertRequests(options) { return assertion(options, this._history); }
+    reset() {
+        this._state = this._prepare(this._state.config, this._state.modulesProxy);
+        this._history = [];
+        this._historyGeneration++;
+    }
+
+    stop(callback = () => {}) {
+        if (!this._server) { callback(); return; }
+        this._server.close(callback);
+        for (const socket of this._connections) socket.destroy();
+        this._connections.clear();
     }
 }
 

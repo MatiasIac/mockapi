@@ -23,7 +23,18 @@ const folder_reader = (folder) => {
             throw new HttpException(constants.HTTP_STATUS_CODES.NOT_ACCEPTABLE, "File not provided");
         }
 
-        const file = path.join(folder, urlInformation.file);
+        const root = fs.realpathSync(folder);
+        let name;
+        try { name = decodeURIComponent(urlInformation.file); }
+        catch { throw new HttpException(400, 'Malformed filename encoding'); }
+        const file = path.resolve(root, name);
+        const inside = target => {
+            const relative = path.relative(root, target);
+            return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+        };
+        if (!inside(file) || (fs.existsSync(file) && !inside(fs.realpathSync(file)))) {
+            throw new HttpException(403, 'Forbidden');
+        }
         return text_reader(file)()
     };
 };

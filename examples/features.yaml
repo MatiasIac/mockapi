@@ -1,0 +1,57 @@
+port: 8080
+enableCors: true
+admin: true
+openApi:
+  info:
+    title: MockAPI feature examples
+    version: 1.0.0
+endpoints:
+  /users:
+    get:
+      response: [{ id: 1, name: Alice }]
+    post:
+      summary: Create a mock user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+              required: [name]
+            example: { name: Alice }
+      responseStatus: 201
+      response: { id: 2, name: "{{body.name}}" }
+      responseExample: { id: 2, name: Alice }
+      responseHeaders:
+        Location: /users/2
+  /users/:id:
+    get:
+      response: { id: "{{params.id}}" }
+      responseExample: { id: jane.doe }
+  /users/me:
+    get:
+      response: { id: 1, name: Alice }
+  /search:
+    get:
+      response: { results: [] }
+      parameters:
+        - name: mode
+          in: query
+          schema: { type: string, enum: [normal, unavailable] }
+      variants:
+        - match:
+            query: { mode: unavailable }
+          responseStatus: 503
+          response: { error: Try again later }
+          responseHeaders: { Retry-After: 1 }
+  /job:
+    get:
+      sequence:
+        - responseStatus: 503
+          response: { state: retry }
+        - responseStatus: 503
+          response: { state: retry }
+        - response: { state: complete }
+log: verbose

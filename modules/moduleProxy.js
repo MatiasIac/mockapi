@@ -1,52 +1,45 @@
-const constants = require("./constants");
+const path = require('node:path');
+const { fileURLToPath, pathToFileURL } = require('node:url');
+const { randomUUID } = require('node:crypto');
 const HttpException = require('./HttpException');
 
 class Proxy {
-
-    _externalModuleList = {};
-
     constructor(externalModulePath, logger) {
-        this._externalModuleList = {};
+        this._externalModuleList = Object.create(null);
         this._logger = logger;
-        this._externalModulePath = externalModulePath;
+        this._externalModulePath = externalModulePath.startsWith('file:') ? fileURLToPath(externalModulePath) : externalModulePath;
     }
 
     async load(modules) {
-        for (const moduleName in modules) {
-            if (Object.hasOwnProperty.call(modules, moduleName)) {
-                const moduleFileName = modules[moduleName];
-                
-                try {
-                    const modulePath = `${this._externalModulePath}${moduleFileName}.js`;
-
-                    this._logger.info(`Attempting to load module ${moduleName} from ${modulePath}`);
-
-                    const module = await import(modulePath);
-
-                    this._externalModuleList[moduleName] = module;
-
-                    this._logger.info(`Module '${moduleName}' was loaded`);
-                } catch (error) {
-                    this._logger.error(`Module '${moduleName}' failed during loading ${error}`);
+        const loaded = Object.create(null);
+        for (const [name, filename] of Object.entries(modules)) {
+            const modulePath = path.resolve(this._externalModulePath, /\.(?:[cm]?js)$/.test(filename) ? filename : filename + '.js');
+            try {
+                if (modulePath.endsWith('.mjs')) {
+                    const module = await import(pathToFileURL(modulePath).href + '?reload=' + randomUUID());
+                    loaded[name] = module.process ? module : module.default;
+                } else {
+                    const resolved = require.resolve(modulePath);
+                    delete require.cache[resolved];
+                    const module = require(resolved);
+                    loaded[name] = module.process ? module : module.default;
                 }
-            }
+                if (typeof loaded[name]?.process !== 'function') throw new Error('must export a process function');
+                this._logger.info(`Module '${name}' was loaded`);
+            } catch (error) { throw new Error(`customHandlers.${name}: ${error.message}`); }
         }
+        this._externalModuleList = loaded;
     }
 
-    execute(name, requestInformation, data) {
+    async execute(name, requestInformation, data) {
         const module = this._externalModuleList[name];
-
-        if (!module) {
-            throw new HttpException(constants.HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR, `Module ${name} doesn't exist`);
-        }
-
-        try {
-            return module.process(requestInformation, data);
-        } catch (error) {
-            throw new HttpException(constants.HTTP_STATUS_CODES.INTERNAL_SERVER_ERROR, `Module ${name} failed. ${error}`);
+        if (!module) throw new HttpException(500, `Module ${name} does not exist`);
+        try { return await module.process(requestInformation, data); }
+        catch (error) {
+            if (error instanceof HttpException) throw error;
+            throw new HttpException(500, `Module ${name} failed. ${error.message || error}`);
         }
     }
-    
 }
 
 module.exports = Proxy;

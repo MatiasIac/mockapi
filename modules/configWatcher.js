@@ -1,59 +1,47 @@
-const fs = require('fs');
+const fs = require('node:fs');
+const path = require('node:path');
 const YAML = require('yaml');
-const readers = require('./readers');
 
 class ConfigWatcher {
-
-    _filePath = '';
-    _logger = null;
-    _onChange = null;
-    _watcher = null;
-    _debounceTimer = null;
-
     constructor(filePath, logger, onChange) {
-        this._filePath = filePath;
+        this._filePath = path.resolve(filePath);
         this._logger = logger;
         this._onChange = onChange;
+        this._stopped = true;
+        this._queue = Promise.resolve();
     }
 
     watch() {
-        this._logger.info(`Watching configuration file for changes: ${this._filePath}`);
-
-        this._watcher = fs.watch(this._filePath, (eventType) => {
-            if (eventType !== 'change') return;
-
-            // Debounce rapid file system events
-            clearTimeout(this._debounceTimer);
-            this._debounceTimer = setTimeout(() => {
-                this._reload();
-            }, 300);
+        if (!this._stopped) return;
+        this._stopped = false;
+        // Watching the directory survives editor saves that replace the file's inode.
+        this._watcher = fs.watch(path.dirname(this._filePath), (_event, filename) => {
+            if (filename && filename.toString() !== path.basename(this._filePath)) return;
+            clearTimeout(this._timer);
+            this._timer = setTimeout(() => {
+                this._queue = this._queue.then(() => this._reload());
+            }, 100);
         });
+        this._watcher.on('error', error => this._logger.error(`Configuration watcher failed: ${error.message}`));
     }
 
-    _reload() {
+    async _reload() {
+        if (this._stopped) return;
         try {
-            const configFile = readers.text_reader(this._filePath);
-            const parsedConfiguration = YAML.parse(configFile());
-
-            if (parsedConfiguration.port === undefined) {
-                this._logger.error('Hot-reload skipped: port property is required');
-                return;
-            }
-
-            this._logger.message('');
-            this._logger.info('Configuration file changed. Reloading...');
-            this._onChange(parsedConfiguration);
-        } catch (error) {
-            this._logger.error(`Hot-reload failed: ${error.message}`);
-        }
+            const contents = await fs.promises.readFile(this._filePath, 'utf8');
+            const config = YAML.parse(contents);
+            if (this._stopped) return;
+            await this._onChange(config);
+            this._logger.info('Configuration reloaded');
+        } catch (error) { this._logger.error(`Hot-reload failed: ${error.message}`); }
     }
 
     stop() {
-        if (this._watcher) {
-            this._watcher.close();
-            this._watcher = null;
-        }
-        clearTimeout(this._debounceTimer);
+        this._stopped = true;
+        clearTimeout(this._timer);
+        this._watcher?.close();
+        this._watcher = null;
+        return this._queue;
     }
 }
 

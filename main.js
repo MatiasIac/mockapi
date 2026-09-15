@@ -1,88 +1,59 @@
 #!/usr/bin/env node
-
 'use strict';
 
-const LOG = require('./modules/log');
+const fs = require('node:fs');
+const path = require('node:path');
+const { once } = require('node:events');
 const YAML = require('yaml');
-const constants = require('./modules/constants');
-const readers = require('./modules/readers');
-const ModuleProxy = require('./modules/moduleProxy');
+const Log = require('./modules/log');
 const CLI = require('./modules/cli');
-const CORE = require('./modules/core');
-const banner = require('./modules/banner');
+const Core = require('./modules/core');
+const ModuleProxy = require('./modules/moduleProxy');
 const ConfigWatcher = require('./modules/configWatcher');
+const { prepareConfiguration } = require('./modules/configuration');
+const banner = require('./modules/banner');
 
-const rootPath = process.cwd();
-const configFilePath = `${rootPath}/${constants.CONFIG_FILE_NAME}`;
-
-const cli = new CLI(configFilePath);
-
-if (cli.hasCommands()) {
-    const syncExit = cli.executeCommandLine();
-    if (syncExit !== false) process.exit(0);
-    return;
-}
-
-if (!readers.file_exists(configFilePath)) {
-    console.log(`Configuration file not found. Please run ${constants.COLOR.fgGreen}--init${constants.COLOR.reset} using the CLI.`);
-    process.exit(1);
-}
-
-const configFile = readers.text_reader(configFilePath);
-const parsedConfiguration = YAML.parse(configFile());
-
-if (parsedConfiguration.port === undefined) throw new Error("port property is required");
-
-const logLevel = parsedConfiguration.log || constants.LOG_LEVELS.ALL;
-const log = new LOG(logLevel);
-const moduleProxy = new ModuleProxy(`file://${rootPath}/${(parsedConfiguration.externalModulesPath || constants.EXTERNAL_MODULES_PATH)}`, log);
-
-if (parsedConfiguration.customHandlers !== undefined) {
-    moduleProxy.load(parsedConfiguration.customHandlers);
-}
-
-log.message(``);
-banner.display();
-log.message(`Mock API configuration:`);
-log.message(`  PORT: ${constants.COLOR.fgGreen}${parsedConfiguration.port}${constants.COLOR.reset}`);
-log.message(`  CORS enabled: ${parsedConfiguration.enableCors ? constants.COLOR.fgGreen : constants.COLOR.fgRed}${!!parsedConfiguration.enableCors}${constants.COLOR.reset}`);
-log.message(`  HTTPS: ${parsedConfiguration.tls ? constants.COLOR.fgGreen + 'enabled' : constants.COLOR.fgRed + 'disabled'}${constants.COLOR.reset}`);
-if (parsedConfiguration.staticPath) {
-    log.message(`  Static files: ${constants.COLOR.fgGreen}${parsedConfiguration.staticPath}${constants.COLOR.reset}`);
-}
-log.message(``);
-
-const protocol = parsedConfiguration.tls ? 'https' : 'http';
-
-log.message(`> Mock API attempting to use port: ${constants.COLOR.fgRed}${parsedConfiguration.port}${constants.COLOR.reset}`)
-
-const core = new CORE(log, parsedConfiguration, moduleProxy);
-core.run();
-
-log.message(`> Mock API listening on ${constants.COLOR.fgGreen}${protocol}://localhost:${parsedConfiguration.port}${constants.COLOR.reset}`);
-
-const watcher = new ConfigWatcher(configFilePath, log, (newConfig) => {
-    core.reload(newConfig);
-    log.message(`> Configuration reloaded. Endpoints updated.`);
-});
-watcher.watch();
-
-log.message(`> Hot-reload enabled. Watching ${constants.COLOR.fgYellow}${constants.CONFIG_FILE_NAME}${constants.COLOR.reset} for changes.`);
-log.message(``);
-
-let isShuttingDown = false;
-
-const shutdown = (signal) => {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
-
-    log.message(`\n> ${signal} received. Shutting down gracefully...`);
-    watcher.stop();
-    core.stop(() => {
-        log.message(`> Mock API stopped.`);
-        process.exit(0);
+async function main() {
+    const options = CLI.parse(process.argv.slice(2));
+    const configPath = path.resolve(options.config || '.mockapi-config');
+    const basePath = path.dirname(configPath);
+    const cli = new CLI(configPath);
+    if (options.command === 'help') { cli.help(); return; }
+    if (options.command === 'version') { console.log(require('./package.json').version); return; }
+    if (options.command === 'init') { await cli.init(options); return; }
+    if (!fs.existsSync(configPath)) throw new Error('Configuration file not found. Run mockapi init --yes.');
+    const config = YAML.parse(await fs.promises.readFile(configPath, 'utf8'));
+    const prepared = prepareConfiguration(config, basePath);
+    const logger = new Log(prepared.config.log || 'verbose');
+    const load = async next => {
+        const candidate = prepareConfiguration(next, basePath);
+        const proxy = new ModuleProxy(candidate.config.externalModulesPath, logger);
+        await proxy.load(candidate.config.customHandlers);
+        return proxy;
+    };
+    const proxy = await load(config);
+    if (options.command === 'validate') { console.log(`Configuration valid: ${configPath}`); return; }
+    const core = new Core(logger, config, proxy, basePath);
+    const server = core.run();
+    try { await once(server, 'listening'); } catch (error) { core.stop(); throw error; }
+    let stopping = false;
+    const watcher = new ConfigWatcher(configPath, logger, async next => {
+        const nextProxy = await load(next);
+        if (stopping) return;
+        core.reload(next, nextProxy);
+        logger._logLevel = next.log || 'verbose';
     });
-};
+    try { watcher.watch(); } catch (error) { core.stop(); throw error; }
+    if (config.log !== 'none') banner.display();
+    console.log(`MockAPI listening on ${prepared.tls ? 'https' : 'http'}://localhost:${server.address().port}`);
+    const shutdown = async () => {
+        if (stopping) return;
+        stopping = true;
+        await watcher.stop();
+        await new Promise(resolve => core.stop(resolve));
+    };
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+}
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+main().catch(error => { console.error(`MockAPI: ${error.message}`); process.exitCode = 1; });

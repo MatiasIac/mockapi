@@ -1,11 +1,12 @@
 {
   "name": "mockapi-msi",
-  "version": "2.5.1",
+  "version": "2.6.0",
   "description": "Mock API is a lightweight configurable HTTP API for testing and prototyping.",
   "main": "main.js",
   "scripts": {
     "start": "node ./main.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage tests/*.test.js"
   },
   "keywords": [
     "mock",
@@ -27,13 +28,16 @@
     "modules/",
     "apiHandlers/",
     "testdata/",
+    "examples/",
+    "CHANGELOG.md",
     "LICENSE",
     "README.md"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
+    "swagger-ui-dist": "5.32.15",
     "yaml": "2.8.3"
   }
 }

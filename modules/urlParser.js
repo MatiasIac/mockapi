@@ -39,8 +39,8 @@ const matchPath = (pattern, requestPath) => {
 
     for (let i = 0; i < patternParts.length; i++) {
         if (patternParts[i].startsWith(":")) {
-            params[patternParts[i].substring(1)] = requestParts[i];
-        } else if (patternParts[i] !== requestParts[i]) {
+            Object.defineProperty(params, patternParts[i].substring(1), { value: decodeURIComponent(requestParts[i]), enumerable: true, configurable: true });
+        } else if (decodeURIComponent(patternParts[i]) !== decodeURIComponent(requestParts[i])) {
             return { match: false, params: {} };
         }
     }
@@ -50,5 +50,13 @@ const matchPath = (pattern, requestPath) => {
 
 module.exports = {
     parse: parser,
-    matchPath: matchPath
+    matchPath: matchPath,
+    query: search => {
+        const result = Object.create(null);
+        for (const [key, value] of search) {
+            if (!Object.hasOwn(result, key)) result[key] = value;
+            else result[key] = Array.isArray(result[key]) ? [...result[key], value] : [result[key], value];
+        }
+        return result;
+    }
 };
