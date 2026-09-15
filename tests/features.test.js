@@ -274,12 +274,19 @@ it('handles a static stream failure and subsequent requests', async t => {
     const dir = temporary(t);
     const filename = path.join(dir, 'broken.txt');
     fs.writeFileSync(filename, 'data');
+    // The server opens the canonical path, which can differ from Windows TEMP.
+    const realFilename = await fs.promises.realpath(filename);
+    let streamFailed = false;
     const original = fs.promises.open;
     t.mock.method(fs.promises, 'open', async function(file, ...args) {
-        if (file === filename) return { createReadStream: () => new Readable({ read() { this.destroy(new Error('simulated disk failure')); } }) };
+        if (file === realFilename) return { createReadStream: () => new Readable({ read() {
+            streamFailed = true;
+            this.destroy(new Error('simulated disk failure'));
+        } }) };
         return original.call(this, file, ...args);
     });
     const { get } = await serve(t, { staticPath: dir, endpoints: { '/health': { get: { response: 'ok' } } } });
     await assert.rejects(get('/broken.txt'));
+    assert.equal(streamFailed, true, 'The mocked static stream must fail');
     assert.equal((await get('/health')).body, 'ok');
 });

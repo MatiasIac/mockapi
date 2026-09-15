@@ -156,6 +156,28 @@ it('watches actual file changes, atomic replacements, invalid saves, and handler
     await eventually(async () => (await request(server.port, '/value')).body === 'third');
 });
 
+it('reloads configuration through a Windows short directory path', { skip: process.platform !== 'win32' }, async t => {
+    const dir = temporary(t);
+    const result = spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'for %I in ("%MOCKAPI_TEST_DIR%") do @echo %~sI'], {
+        env: { ...process.env, MOCKAPI_TEST_DIR: dir }, encoding: 'utf8', timeout: 5000, windowsVerbatimArguments: true
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const shortDir = result.stdout.trim();
+    assert.equal(fs.realpathSync.native(shortDir), fs.realpathSync.native(dir));
+    if (!shortDir.includes('~')) { t.skip('Temporary volume does not provide Windows short names'); return; }
+    const filename = path.join(dir, '.mockapi-config');
+    const config = value => YAML.stringify({ port: 0, log: 'none', endpoints: { '/value': { get: { response: value } } } });
+    fs.writeFileSync(filename, config('first'));
+    const server = await running(t, dir, ['--config', path.join(shortDir, '.mockapi-config')]);
+    assert.equal((await request(server.port, '/value')).body, 'first');
+    fs.writeFileSync(filename, config('second'));
+    await eventually(async () => (await request(server.port, '/value')).body === 'second');
+    const replacement = path.join(dir, 'next-config');
+    fs.writeFileSync(replacement, config('third'));
+    fs.renameSync(replacement, filename);
+    await eventually(async () => (await request(server.port, '/value')).body === 'third');
+});
+
 it('serializes watcher callbacks, catches callback rejection, and stops watching', async t => {
     const dir = temporary(t);
     const filename = path.join(dir, 'config.yaml');

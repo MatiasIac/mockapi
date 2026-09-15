@@ -13,9 +13,11 @@ class ConfigWatcher {
 
     watch() {
         if (!this._stopped) return;
+        // Expand Windows short directory names before libuv receives file events.
+        const directory = fs.realpathSync.native(path.dirname(this._filePath));
         this._stopped = false;
         // Watching the directory survives editor saves that replace the file's inode.
-        this._watcher = fs.watch(path.dirname(this._filePath), (_event, filename) => {
+        this._watcher = fs.watch(directory, (_event, filename) => {
             if (filename && filename.toString() !== path.basename(this._filePath)) return;
             clearTimeout(this._timer);
             this._timer = setTimeout(() => {
