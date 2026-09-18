@@ -532,13 +532,14 @@ more reliably than a single-file mount.
 
 For web-console **saving**, mount the whole configuration directory with write
 access, set `admin.token` in that configuration, and ensure the `node` user can
-write to the directory. For example, if `mock-workspace/config.yaml` specifies
+write to the directory. Use the standard `.mockapi-config` filename in Docker
+as well as when running locally. For example, if `mock-workspace/.mockapi-config` specifies
 port 8001 and includes a token:
 
 ```sh
 docker run --rm -p 127.0.0.1:3001:8001 \
   -v "$PWD/mock-workspace:/workspace" \
-  mockapi node main.js --config /workspace/config.yaml
+  mockapi node main.js --config /workspace/.mockapi-config
 # Open http://localhost:3001/__mockapi/ui/ and enter the configured token.
 ```
 
