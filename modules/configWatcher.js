@@ -3,10 +3,11 @@ const path = require('node:path');
 const YAML = require('yaml');
 
 class ConfigWatcher {
-    constructor(filePath, logger, onChange) {
+    constructor(filePath, logger, onChange, onError = () => {}) {
         this._filePath = path.resolve(filePath);
         this._logger = logger;
         this._onChange = onChange;
+        this._onError = onError;
         this._stopped = true;
         this._queue = Promise.resolve();
     }
@@ -35,7 +36,7 @@ class ConfigWatcher {
             if (this._stopped) return;
             await this._onChange(config);
             this._logger.info('Configuration reloaded');
-        } catch (error) { this._logger.error(`Hot-reload failed: ${error.message}`); }
+        } catch (error) { this._onError(error); this._logger.error(`Hot-reload failed: ${error.message}`); }
     }
 
     stop() {

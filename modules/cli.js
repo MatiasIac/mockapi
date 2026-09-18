@@ -18,13 +18,15 @@ class CLI {
             if (['init', '--init', 'validate', '--validate', 'help', '--help', '--version'].includes(arg)) {
                 if (result.command !== 'start') throw new Error('Specify only one command');
                 result.command = arg.replace(/^--/, '');
-            } else if (['--yes', '-y', '--force'].includes(arg)) result[arg === '--force' ? 'force' : 'yes'] = true;
+            } else if (arg === '--ui') result.ui = true;
+            else if (['--yes', '-y', '--force'].includes(arg)) result[arg === '--force' ? 'force' : 'yes'] = true;
             else if (['--config', '--port'].includes(arg)) {
                 if (!args[i + 1] || args[i + 1].startsWith('--')) throw new Error(`${arg} requires a value`);
                 result[arg.slice(2)] = args[++i];
             } else throw new Error(`Unknown argument '${arg}'. Run mockapi --help.`);
         }
         if ((result.yes || result.force || result.port !== undefined) && result.command !== 'init') throw new Error('--yes, --force, and --port are init options');
+        if (result.ui && result.command !== 'start') throw new Error('--ui is a start option');
         return result;
     }
 
@@ -55,7 +57,7 @@ class CLI {
     }
 
     help() {
-        console.log('MockAPI\n\nmockapi [--config FILE]\nmockapi init [--yes] [--port NUMBER] [--force] [--config FILE]\nmockapi validate [--config FILE]\nmockapi --version\n\ninit creates a working configuration; --force permits overwriting an existing file.\nvalidate checks configuration, data files, TLS, and custom handler exports.');
+        console.log('MockAPI\n\nmockapi [--config FILE] [--ui]\nmockapi init [--yes] [--port NUMBER] [--force] [--config FILE]\nmockapi validate [--config FILE]\nmockapi --version\n\n--ui enables the web console at /__mockapi/ui/ (or your configured admin path).\ninit creates a working configuration; --force permits overwriting an existing file.\nvalidate checks configuration, data files, TLS, and custom handler exports.');
     }
 }
 

@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Add Normal and Expert configuration modes with a shared draft. Visual controls
+  cover all supported configuration options, endpoint CRUD, typed response values,
+  matching, variants, sequences, data sources, handlers, and OpenAPI metadata.
+- Preserve source/handler references on rename, support source/visual mode
+  switching without applying changes, and allow downloading unapplied drafts.
+
+- Add an optional web console at `/__mockapi/ui/`, enabled through `--ui` or the
+  existing admin configuration, for managing a running Mock API instance.
+- Add endpoint editing, duplication and deletion; JSON/text/data responses;
+  status, delay, headers and advanced behavior; a request tester and live log;
+  and YAML/JSON configuration validation, import and export.
+- Persist console changes with atomic writes, revision conflict checks, and the
+  existing file watcher. Preserve relative paths and unchanged YAML comments.
+- Extend the protected admin API with configuration management and independent
+  history clearing. Redact tokens from snapshots and exports and guard local
+  administration against untrusted Host headers.
+- Include console assets in npm/Docker distributions, allow the container's
+  non-root user to save its bundled configuration, and add browser and integration
+  coverage for the new workflows.
+
+## Unreleased
+
 - Full-path routing and literal-route precedence.
 - Validated, atomic configuration reloads with clear errors.
 - Per-method endpoints, inline responses, headers, templates, matching, and resettable sequences.
@@ -62,4 +84,3 @@
 - New CORE class created and code moved from the main module.
 - Additional checking for the configuration file.
 - Folder file readear incorrect path contactenation fixed.
-

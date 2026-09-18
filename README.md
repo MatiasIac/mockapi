@@ -39,7 +39,7 @@ node main.js --config examples/features.yaml
 ## CLI
 
 ```text
-mockapi [--config FILE]
+mockapi [--config FILE] [--ui]
 mockapi init [--yes] [--port NUMBER] [--force] [--config FILE]
 mockapi validate [--config FILE]
 mockapi --help
@@ -54,6 +54,160 @@ mockapi --version
   is used. Relative data, handler, static, and TLS paths resolve from the
   **configuration file's directory**.
 - Loading or validating custom handlers executes their JavaScript module code.
+- `--ui` enables the web console and administration API for this process. It uses
+  your configured admin path and token, if present.
+
+## Web console
+
+Manage a running Mock API instance in your browser:
+
+```sh
+# From this repository (the bundled configuration uses port 8001)
+npm run start:ui
+# Open http://localhost:8001/__mockapi/ui/
+
+# From an installed CLI
+mockapi --ui
+# Open http://localhost:8080/__mockapi/ui/ for the generated configuration
+
+# Explore a complete example with users, products, and orders
+node main.js --config examples/console.yaml
+# Open http://localhost:8080/__mockapi/ui/
+```
+
+The console runs on the **same server and port** as your mock API. It connects to
+that running instance; opening another browser tab does not start another mock
+server. No build step, external assets, paid service, or frontend dependencies
+are required. The normal CLI and configuration-file workflow remain available.
+
+You can also add `admin: true` to an existing running instance's configuration.
+Hot reload enables the console at `/__mockapi/ui/`. With `admin.path: /control`,
+the console is at `/control/ui/`. Administration remains disabled by default.
+An instance running an older version of Mock API must first be upgraded and
+restarted to load the console implementation.
+
+The console provides:
+
+- **Endpoints:** search, create, edit, duplicate, and delete routes. Configure
+  methods, JSON/text responses, file data sources, status codes, delays, and
+  headers. Advanced JSON options expose matching, variants, response sequences,
+  custom handlers, and OpenAPI metadata without discarding those options during
+  ordinary edits. Both legacy `verb` and per-method configurations are supported.
+- **Request tester:** send requests to the current instance and inspect response
+  bodies, headers, status, and timing. Replace path parameters with actual values;
+  use the saved configuration. The tester does not attach your admin token, send
+  browser credentials, or follow redirects. Response previews are limited to
+  1 MiB and requests time out after 60 seconds. Browser restrictions apply to
+  methods and managed headers; TRACE requires another HTTP client.
+- **Request log:** inspect incoming requests, including query parameters, headers,
+  bodies, status, and duration. Filter the log, pause updates, or clear history
+  without resetting scenarios. The configured history/body limits still apply.
+- **Configuration:** choose **Normal mode** for guided visual controls or
+  **Expert mode** for the JSON/YAML editor. Both edit the same draft, including
+  endpoints, response values, sources, handlers, CORS, and OpenAPI settings.
+  Import a file as a draft for review, or export the saved configuration as YAML.
+  Live saves must keep the current host, port, TLS, and enabled admin path.
+  Exports omit admin tokens.
+
+### Normal and expert configuration modes
+
+Normal mode is the default. Sections cover server settings, endpoints, data
+sources, custom handlers, CORS, documentation, and administration. Each option
+has a label and explanation. Enable its **Configure** checkbox to supply a value;
+leave it off to keep the server's default or a scenario's inherited value.
+
+- Add, rename, update, and remove endpoint paths and HTTP methods. Legacy `verb`
+  routes retain their original format. Configure statuses, delays, content types,
+  response headers, and custom handlers using labeled controls.
+- Build response objects and arrays using typed values: text, number, boolean,
+  null, object, or array. Add/remove named properties and reorder array items.
+  **Insert a request value** helps create path, query, body, header, method, and
+  sequence-index templates without remembering their syntax.
+- Configure request matching, conditional variants, ordered response sequences,
+  and hold/cycle behavior. Enabling an incompatible response option asks before
+  replacing the existing draft option. Sequence and variant overrides preserve
+  inheritance from the base response.
+- Add file/CSV/folder data sources, select CSV output/selection/start options,
+  and register JavaScript handlers. Renaming a source or handler updates its
+  references in endpoints, variants, and sequences. Files and handler modules
+  must already exist on the server; the console edits their configuration, not
+  the files themselves. Use response-body fields to edit inline data values.
+- Configure OpenAPI metadata, request bodies, parameters, response schemas, and
+  examples. Schema fields have guided controls; additional properties and
+  extensions use the same typed-value editor.
+
+Mode switching does not save, reload the API, or reset request history. It
+preserves omitted options, legacy formats, data types, and additional metadata.
+Expert-mode YAML is parsed without applying it; incomplete semantic settings
+can be reviewed before validation. Malformed source remains in Expert mode with
+an error. Imported files open as expert drafts and can be switched to Normal mode.
+
+**Download draft** exports the current draft as JSON without applying it or
+including an admin token. This also lets you configure host, port, and TLS
+visually, then use the downloaded values in the configuration file and restart.
+Admin token values are managed only in the file. Both modes retain the same
+authorization, validation, persistence, and stale-revision protection.
+
+**Save & apply** validates the configuration and custom handlers, writes the active
+file, and swaps the running configuration. Relative paths remain relative to the
+configuration file, and unchanged YAML comments are preserved where possible.
+YAML aliases may be expanded to preserve independent response values. Changes
+survive a restart. Saving resets request history, response sequences, and CSV
+positions, just like editing the file. **Reset scenarios** resets those positions
+and history without changing the configuration.
+
+Saves use revision checks so a stale tab cannot overwrite another tab or an
+external file edit. If there is a conflict, the draft remains visible; reload
+the latest configuration before saving again. An invalid external file leaves
+the last valid configuration running and must be repaired on disk before the
+console can save. A filesystem write failure leaves the running configuration
+unchanged. Use a writable **parent directory** for persistent configuration;
+atomic saves require creating a temporary sibling file and renaming it.
+
+Changing `host`, `port`, or `tls` requires a restart. Change admin credentials,
+the admin path, or the enabled state in the configuration file. The console
+does not expose or change the configured token. A CLI process started with
+`--ui` keeps administration enabled; saving from that process writes the enabled
+admin setting to the file as well.
+
+Without an admin token, only loopback clients with a loopback/localhost Host
+header can administer the instance. For Docker or access from another machine,
+configure a token, serve over HTTPS on untrusted networks, and enter the token
+in the console's connection dialog:
+
+```yaml
+admin:
+  enabled: true
+  token: replace-with-your-own-random-token
+```
+
+The login page and bundled assets are public; configuration and request data
+require authorization. Tokens stay in the tab's memory until disconnect or
+refresh. Mock CORS settings do not grant cross-origin admin access. An admin
+token grants control over the entire instance, including configuration of
+custom JavaScript handlers. This phase is a **single-instance development tool**;
+it does not provide company accounts, tenant isolation, or SaaS hosting.
+
+### Management API
+
+These routes extend the existing admin API and use its authorization rules:
+
+| Method and path | Behavior |
+| --- | --- |
+| `GET /__mockapi/config` | Active source configuration, revision, and instance information. Admin tokens are redacted. |
+| `PUT /__mockapi/config` | Validate, persist, and apply `{ "revision": "…", "config": { … } }`. Supply `source` (YAML/JSON text) instead of `config` to use source text. |
+| `POST /__mockapi/config/validate` | Validate `{ "config": { … } }` or `{ "source": "…" }` without applying. |
+| `POST /__mockapi/config/parse` | Parse a JSON/YAML draft into an object without loading files, running handlers, validating runtime settings, or applying changes. Requires admin authorization. |
+| `GET /__mockapi/config/export` | Download the active configuration as YAML, excluding the admin token. |
+| `DELETE /__mockapi/requests` | Clear request history without resetting sequences or CSV readers. |
+
+Configuration mutations return `400` for invalid or restart-required changes,
+`409` for missing/stale revisions or external file conflicts, and `500` if
+persistence fails. Configuration writes and validation have a separate 5 MiB
+body limit and 30-second body timeout, so small mock `maxBodyBytes` settings do
+not prevent administration. If you embed `Core` without a configuration-file
+option, the console applies changes in memory only and labels that behavior;
+export the configuration to retain a copy.
 
 ## Endpoints
 
@@ -376,9 +530,26 @@ Match the container port to the configuration's `port`. For editor saves that
 replace the config file, mounting its parent directory preserves watcher behavior
 more reliably than a single-file mount.
 
+For web-console **saving**, mount the whole configuration directory with write
+access, set `admin.token` in that configuration, and ensure the `node` user can
+write to the directory. For example, if `mock-workspace/config.yaml` specifies
+port 8001 and includes a token:
+
+```sh
+docker run --rm -p 127.0.0.1:3001:8001 \
+  -v "$PWD/mock-workspace:/workspace" \
+  mockapi node main.js --config /workspace/config.yaml
+# Open http://localhost:3001/__mockapi/ui/ and enter the configured token.
+```
+
+Single-file bind mounts and read-only mounts cannot support atomic console
+saves. Changes to the image's bundled file without a directory mount are local
+to that container and disappear when the container is removed.
+
 ```sh
 npm test
 npm run test:coverage
+npm run test:browser
 docker run --rm --network none mockapi npm test
 ```
 
@@ -386,5 +557,12 @@ Tests cover configuration, routing, responses, scenarios, history/assertions,
 HTTP limits, CORS, file/stream failures, HTTPS, async handlers, real CLI processes,
 and filesystem reloads. CI runs on Windows/Linux with Node 22/24 and tests the
 Docker image with external networking disabled.
+
+The browser check uses an installed Chrome, Chromium, or Edge through its local
+debugging protocol. Set `CHROME_PATH` if it is not in a standard location. It
+tests token login, live endpoint CRUD, the request tester/log, YAML validation,
+file conflicts, and the mobile layout. Screenshots are written to the ignored
+`.local-data/` directory. It does not install browser libraries or change your
+working configuration.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

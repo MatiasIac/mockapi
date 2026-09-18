@@ -1,0 +1,69 @@
+# A small storefront API to explore in the web console.
+# Run: node main.js --config examples/console.yaml
+# Open: http://localhost:8080/__mockapi/ui/
+port: 8080
+enableCors: true
+admin: true
+openApi:
+  info:
+    title: Storefront API
+    version: 1.0.0
+    description: A mock storefront for building and testing your application.
+endpoints:
+  /api/users:
+    get:
+      summary: List all users
+      responseStatus: 200
+      delay: 120
+      response:
+        users:
+          - id: usr_001
+            name: Alex Morgan
+            email: alex@example.com
+            role: developer
+          - id: usr_002
+            name: Sam Rivera
+            email: sam@example.com
+            role: designer
+        total: 2
+    post:
+      summary: Create a new user
+      responseStatus: 201
+      response:
+        id: usr_003
+        name: "{{body.name}}"
+        created: true
+  /api/users/:id:
+    get:
+      summary: Get a user by ID
+      response:
+        id: "{{params.id}}"
+        name: Alex Morgan
+        email: alex@example.com
+  /api/products:
+    get:
+      summary: Browse the product catalog
+      response:
+        products:
+          - id: prod_001
+            name: Studio headphones
+            price: 129
+          - id: prod_002
+            name: Mechanical keyboard
+            price: 89
+  /api/orders:
+    post:
+      summary: Place an order
+      responseStatus: 201
+      delay: 250
+      response:
+        id: ord_001
+        status: confirmed
+      responseHeaders:
+        Location: /api/orders/ord_001
+  /health:
+    get:
+      summary: Check API health
+      response:
+        status: healthy
+log: verbose

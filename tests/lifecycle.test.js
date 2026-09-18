@@ -220,3 +220,29 @@ it('prints a clear startup failure when the port is already occupied', async t =
     assert.match(result.stderr, /EADDRINUSE/);
     assert.doesNotMatch(result.stdout, /listening on/);
 });
+
+it('runs the console alongside the CLI, persists saves, and continues watching external edits', async t => {
+    const dir = temporary(t);
+    const configPath = path.join(dir, '.mockapi-config');
+    fs.writeFileSync(configPath, '# Existing CLI file\nport: 0\nlog: none\nendpoints: {}\n');
+    const server = await running(t, dir, ['--ui']);
+    await eventually(() => /Web console:/.test(server.output()));
+    assert.equal((await request(server.port, '/__mockapi/ui/')).status, 200);
+    const current = JSON.parse((await request(server.port, '/__mockapi/config')).body);
+    current.config.endpoints['/new'] = { get: { response: 'saved from UI' } };
+    const saved = await request(server.port, '/__mockapi/config', { method: 'PUT', body: JSON.stringify(current) });
+    assert.equal(saved.status, 200, saved.body);
+    assert.equal((await request(server.port, '/new')).body, 'saved from UI');
+    const savedRevision = JSON.parse(saved.body).revision;
+    await new Promise(resolve => setTimeout(resolve, 350));
+    assert.equal(JSON.parse((await request(server.port, '/__mockapi/config')).body).revision, savedRevision);
+    const persisted = YAML.parse(fs.readFileSync(configPath, 'utf8'));
+    assert.equal(persisted.endpoints['/new'].get.response, 'saved from UI');
+    persisted.endpoints['/new'].get.response = 'saved from editor';
+    fs.writeFileSync(configPath, YAML.stringify(persisted));
+    await eventually(async () => (await request(server.port, '/new')).body === 'saved from editor');
+    fs.writeFileSync(configPath, 'port: [invalid');
+    await eventually(async () => !!JSON.parse((await request(server.port, '/__mockapi/config')).body).instance.reloadError);
+    assert.equal((await request(server.port, '/new')).body, 'saved from editor');
+    assert.equal(cli(dir, ['validate', '--ui']).status, 1);
+});

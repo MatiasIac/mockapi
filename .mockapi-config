@@ -1,4 +1,3 @@
-
 # basic Mock API configuration
 port: 8001
 enableCors: true
@@ -20,7 +19,7 @@ data:
   myRows:
     path: "./testdata/data.csv"
     reader: csv
-    properties: 
+    properties:
       - json
       - seq
       - 0
@@ -30,18 +29,18 @@ data:
     #-1 = return every record on every request
     #0...n starting index (always reset to 0 when reach EOR)
 
-# custom http response handlers section
-# use: handler unique name : file name within the previously declared folder
-#customHandlers:
-#  "custom": "myCustomHandler"
+    # custom http response handlers section
+    # use: handler unique name : file name within the previously declared folder
+    #customHandlers:
+    #  "custom": "myCustomHandler"
 
-# Mock API available endpoints, return types and
-# general configuration
-# verb: any | get | post | delete | ...
-# data: refers to previously configured data and readers
-# responseStatus: 200 | 404 | 500 | ...
-# responseContentType: any MIME available type
-# handler: refers to any previously configured custom handler
+    # Mock API available endpoints, return types and
+    # general configuration
+    # verb: any | get | post | delete | ...
+    # data: refers to previously configured data and readers
+    # responseStatus: 200 | 404 | 500 | ...
+    # responseContentType: any MIME available type
+    # handler: refers to any previously configured custom handler
 endpoints:
   "/data":
     verb: get
@@ -50,8 +49,21 @@ endpoints:
     responseContentType: "application/json"
     #handler: "custom"
 
+  /data2:
+    verb: get
+    data: myRows
+    responseStatus: 200
+    responseContentType: application/json
+  /api/new:
+    get:
+      response: Test
+      responseStatus: 200
+      delay: 1000
+      responseContentType: application/text
 log: verbose
   #debug
   #error
   #verbose
   #none
+admin:
+  enabled: true

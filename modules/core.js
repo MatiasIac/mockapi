@@ -3,10 +3,12 @@ const https = require('node:https');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pipeline } = require('node:stream/promises');
-const { timingSafeEqual } = require('node:crypto');
+const { timingSafeEqual, randomUUID } = require('node:crypto');
 const parser = require('./urlParser');
 const openApi = require('./openApi');
 const HttpException = require('./HttpException');
+const Management = require('./management');
+const YAML = require('yaml');
 const { prepareConfiguration, mergeResponse, restartRequired } = require('./configuration');
 const { matches, render, assertion } = require('./requestTools');
 
@@ -18,7 +20,7 @@ const MIME_TYPES = {
 };
 
 class Core {
-    constructor(logger, configurations, modulesProxy, basePath = process.cwd()) {
+    constructor(logger, configurations, modulesProxy, basePath = process.cwd(), managementOptions) {
         this._logger = logger;
         this._basePath = basePath;
         this._connections = new Set();
@@ -26,15 +28,17 @@ class Core {
         this._requestId = 0;
         this._historyGeneration = 0;
         this._state = this._prepare(configurations, modulesProxy);
+        this.management = new Management(this, managementOptions);
     }
 
     _prepare(configurations, modulesProxy) {
         const prepared = prepareConfiguration(configurations, this._basePath);
-        return { ...prepared, modulesProxy, spec: openApi.buildSpec(prepared.openApi, prepared.routes), sequences: new Map() };
+        return { ...prepared, source: structuredClone(configurations), revision: randomUUID(), modulesProxy, spec: openApi.buildSpec(prepared.openApi, prepared.routes), sequences: new Map() };
     }
 
     run() {
         if (this._server) throw new Error('Server has already been started');
+        this._startedAt = new Date().toISOString();
         const handler = (request, response) => {
             const state = this._state;
             this._handle(request, response, state).catch(error => this._error(response, error));
@@ -181,18 +185,61 @@ class Core {
         } else {
             const address = request.socket.remoteAddress || '';
             if (!(address === '::1' || /^(::ffff:)?127\./.test(address))) throw new HttpException(403, 'Remote admin access requires a configured token');
+            let hostname;
+            try { hostname = new URL('http://' + request.headers.host).hostname; } catch { /* rejected below */ }
+            if (!(hostname === 'localhost' || hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(hostname))) throw new HttpException(403, 'Local admin access requires a localhost or loopback Host header');
         }
         if (request.headers.origin && !state.admin.token && request.headers.origin !== `${request.socket.encrypted ? 'https' : 'http'}://${request.headers.host}`) throw new HttpException(403, 'Cross-origin admin access requires a token');
     }
 
     async _admin(request, response, state, url) {
         if (!state.admin.enabled || !(url.pathname === state.admin.path || url.pathname.startsWith(state.admin.path + '/'))) return false;
-        this._authorize(request, state);
+        response.setHeader('Cache-Control', 'no-store');
+        response.setHeader('X-Content-Type-Options', 'nosniff');
+        response.setHeader('Referrer-Policy', 'no-referrer');
         const endpoint = url.pathname.slice(state.admin.path.length);
-        if (endpoint === '/requests' && request.method === 'GET') {
+        if (['GET', 'HEAD'].includes(request.method)) {
+            if (['', '/', '/ui'].includes(endpoint)) {
+                this._send(response, 302, '', { Location: state.admin.path + '/ui/' });
+                return true;
+            }
+            const assets = { '/ui/': 'index.html', '/ui/app.js': 'app.js', '/ui/styles.css': 'styles.css', '/ui/config-schema.js': 'config-schema.js', '/ui/config-visual.js': 'config-visual.js' };
+            if (Object.hasOwn(assets, endpoint)) {
+                response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+                return this._static(request, response, path.join(__dirname, '../web'), '/' + assets[endpoint]);
+            }
+        }
+        this._authorize(request, state);
+        if (endpoint === '/config' && request.method === 'GET') {
+            this._send(response, 200, this.management.snapshot());
+        } else if (endpoint === '/config/export' && request.method === 'GET') {
+            this._send(response, 200, YAML.stringify(this.management.snapshot().config), { 'Content-Disposition': 'attachment; filename="mockapi-config.yaml"' }, 'application/yaml; charset=utf-8');
+        } else if (['/config', '/config/validate', '/config/parse'].includes(endpoint) && request.method === (endpoint === '/config' ? 'PUT' : 'POST')) {
+            const body = await this._readBody(request, response, { config: { maxBodyBytes: 5 * 1024 * 1024, requestTimeout: 30000 } });
+            let input;
+            try { input = JSON.parse(body); } catch { throw new HttpException(400, 'Configuration requires a JSON body'); }
+            if (!input || typeof input !== 'object' || Array.isArray(input) || (Object.hasOwn(input, 'config') === Object.hasOwn(input, 'source')) || (Object.hasOwn(input, 'source') && typeof input.source !== 'string')) throw new HttpException(400, 'Provide either config (an object) or source (YAML or JSON text)');
+            if (endpoint === '/config/parse') {
+                let config;
+                try { config = typeof input.source === 'string' ? YAML.parse(input.source) : input.config; }
+                catch (error) { throw new HttpException(400, error.message); }
+                if (!config || typeof config !== 'object' || Array.isArray(config)) throw new HttpException(400, 'Configuration must be an object');
+                this._send(response, 200, { config });
+            } else if (endpoint === '/config/validate') {
+                const next = await this.management.prepare(input);
+                const config = structuredClone(next.source);
+                if (config.admin && typeof config.admin === 'object') delete config.admin.token;
+                this._send(response, 200, { valid: true, config });
+            } else this._send(response, 200, await this.management.save(input, () => this._authorize(request, this._state)));
+        } else if (endpoint === '/requests' && request.method === 'GET') {
             const match = Object.fromEntries(url.searchParams);
             if (Object.keys(match).some(key => !['method', 'path'].includes(key))) throw new HttpException(400, 'Request filters support method and path');
             this._send(response, 200, { requests: this.getRequests(match), limit: state.admin.historyLimit });
+        } else if (endpoint === '/requests' && request.method === 'DELETE') {
+            await this._readBody(request, response, state);
+            this._history = [];
+            this._historyGeneration++;
+            this._send(response, 200, { cleared: true });
         } else if (endpoint === '/assert' && request.method === 'POST') {
             const body = await this._readBody(request, response, state);
             let options;
@@ -292,7 +339,12 @@ class Core {
         const next = this._prepare(configurations, modulesProxy);
         const changes = restartRequired(this._state.config, next.config);
         if (this._server && changes.length) throw new Error(`Restart required to change ${changes.join(', ')}`);
+        this._apply(next);
+    }
+
+    _apply(next) {
         this._state = next;
+        this._logger._logLevel = next.config.log || 'verbose';
         this._history = [];
         this._historyGeneration++;
         if (this._server) {
@@ -305,7 +357,7 @@ class Core {
     getRequests(match = {}) { return structuredClone(this._history.filter(request => matches(match, request))); }
     assertRequests(options) { return assertion(options, this._history); }
     reset() {
-        this._state = this._prepare(this._state.config, this._state.modulesProxy);
+        this._state = { ...this._prepare(this._state.source, this._state.modulesProxy), revision: this._state.revision };
         this._history = [];
         this._historyGeneration++;
     }

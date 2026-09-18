@@ -38,8 +38,8 @@ function request(port, url = '/', { method = 'GET', headers = {}, body, secure =
         req.end(body);
     });
 }
-async function serve(t, config = {}, proxy, basePath) {
-    const core = new Core(logger(), { port: 0, ...config }, proxy, basePath);
+async function serve(t, config = {}, proxy, basePath, managementOptions) {
+    const core = new Core(logger(), { port: 0, ...config }, proxy, basePath, managementOptions);
     const server = core.run();
     t.after(() => new Promise(resolve => core.stop(resolve)));
     await once(server, 'listening');

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Mock API · Console</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%230f766e'/%3E%3Cpath d='m15 12-8 8 8 8m10-16 8 8-8 8' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./config-schema.js" defer></script>
+  <script src="./config-visual.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <svg class="icon-library" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 4 12 8-12 8Z"/></symbol>
+    <symbol id="i-log" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 10a8 8 0 1 0-1 7M20 3v7h-7"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5m8-10 5 5-5 5M14 4l-4 16"/></symbol>
+  </defs></svg>
+  <aside class="sidebar">
+    <a class="brand" href="#endpoints" aria-label="Mock API home"><span class="brand-mark"><svg><use href="#i-code"/></svg></span><span>mock<span class="brand-light">api</span><small>DEVELOPER CONSOLE</small></span></a>
+    <div class="workspace-label">WORKSPACE</div>
+    <div class="workspace-card"><span class="workspace-avatar">L</span><div><strong>Local workspace</strong><small>Your mock environment</small></div><span class="local-dot"></span></div>
+    <nav aria-label="Main navigation">
+      <a href="#endpoints" class="nav-link active" data-page="endpoints"><svg><use href="#i-grid"/></svg>Endpoints<span id="nav-endpoint-count" class="nav-count">0</span></a>
+      <a href="#tester" class="nav-link" data-page="tester"><svg><use href="#i-play"/></svg>Request tester</a>
+      <a href="#history" class="nav-link" data-page="history"><svg><use href="#i-log"/></svg>Request log<span id="nav-request-count" class="nav-count">0</span></a>
+      <a href="#configuration" class="nav-link" data-page="configuration"><svg><use href="#i-settings"/></svg>Configuration</a>
+    </nav>
+    <div class="sidebar-note"><span class="note-icon">{ }</span><strong>Build without the wait.</strong><p>Your API, your responses.<br>Keep development moving.</p></div>
+    <div class="sidebar-bottom"><a id="docs-link" class="resource-link" target="_blank" rel="noopener">API documentation<svg><use href="#i-arrow"/></svg></a><div class="sidebar-version"><span class="local-dot"></span>Mock API <span id="version"></span><span class="free-label">FREE</span></div></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><div class="breadcrumb">Local workspace <span>/</span> <strong id="breadcrumb-page">Endpoints</strong></div><button id="connection" class="connection-button"><span id="connection-dot" class="local-dot"></span><span id="connection-label">Connecting…</span><span class="connection-divider"></span><span class="mono" id="instance-address"></span></button></header>
+    <main>
+      <div id="notice" class="notice" role="status" hidden><span id="notice-text"></span><button id="reload" class="button small">Reload latest</button></div>
+      <section id="page-endpoints" class="page">
+        <div class="page-heading"><div><div class="eyebrow">MOCK IT. BUILD IT. SHIP IT.</div><h1>Endpoints</h1><p>Shape the responses your application needs.</p></div><div class="heading-actions"><button class="button" id="import-button"><svg><use href="#i-up"/></svg>Import</button><button class="button" id="export-button"><svg><use href="#i-down"/></svg>Export</button><button class="button primary" id="new-endpoint"><svg><use href="#i-plus"/></svg>New endpoint</button></div></div>
+        <div class="stats"><div class="stat"><span class="stat-icon"><svg><use href="#i-grid"/></svg></span><div><span class="stat-label">Endpoints</span><strong id="endpoint-total">0</strong></div><span class="stat-foot">Ready to respond</span></div><div class="stat"><span class="stat-icon"><svg><use href="#i-log"/></svg></span><div><span class="stat-label">Recorded requests</span><strong id="request-total">0</strong></div><span class="stat-foot" id="history-limit">Live history</span></div><div class="stat"><span class="stat-icon"><svg><use href="#i-code"/></svg></span><div><span class="stat-label">Configuration</span><strong class="config-filename" id="config-filename">In memory</strong></div><span class="stat-foot"><span class="local-dot"></span> Hot reload</span></div></div>
+        <div class="endpoint-workbench">
+          <section class="endpoint-browser" aria-label="Endpoint list"><div class="list-heading"><strong>Your endpoints</strong><span id="list-count" class="subtle">0 total</span></div><div class="search-box"><svg><use href="#i-search"/></svg><input id="endpoint-search" aria-label="Search endpoints" placeholder="Search path or method…" type="search"></div><div id="endpoint-list" class="endpoint-list"></div><div class="list-footer"><span class="local-dot"></span> Changes apply to the running instance</div></section>
+          <section class="endpoint-detail" aria-label="Endpoint editor">
+            <div id="endpoint-empty" class="empty-state"><span class="empty-icon"><svg><use href="#i-code"/></svg></span><h2>Your next API starts here</h2><p>Create an endpoint, define a response,<br>and start building against it.</p><button id="empty-new" class="button primary"><svg><use href="#i-plus"/></svg>Create an endpoint</button></div>
+            <form id="endpoint-form" hidden>
+              <div class="editor-heading"><div><span class="eyebrow">ENDPOINT DETAILS</span><h2 id="editor-title">New endpoint</h2></div><div class="editor-tools"><span id="draft-indicator" class="draft" hidden>Unsaved</span><button type="button" id="duplicate-endpoint" class="icon-button" title="Duplicate endpoint" aria-label="Duplicate endpoint"><svg><use href="#i-copy"/></svg></button><button type="button" id="delete-endpoint" class="icon-button danger-text" title="Delete endpoint" aria-label="Delete endpoint"><svg><use href="#i-trash"/></svg></button></div></div>
+              <div class="editor-content"><div class="route-fields"><label class="method-field">Method<select id="endpoint-method"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option><option>TRACE</option><option>ANY</option></select></label><label>Endpoint path<input id="endpoint-path" class="mono" placeholder="/api/users/:id" required pattern="/.*" autocomplete="off"></label></div><label class="summary-field">Description <span class="optional">optional</span><input id="endpoint-summary" placeholder="What does this endpoint do?"></label>
+              <div class="section-title"><h3>Response</h3><span class="subtle">What your application receives</span></div><div class="response-fields"><label>Status code<input id="endpoint-status" type="number" min="200" max="599" value="200" required></label><label>Delay <span class="optional">ms</span><input id="endpoint-delay" type="number" min="0" max="2147483647" value="0" required></label><label>Response type<select id="response-type"><option value="json">JSON</option><option value="text">Plain text</option><option value="data">Data source</option><option value="empty">No body</option></select></label></div>
+              <label id="data-source-field" hidden>Data source<select id="endpoint-data"></select><span class="field-help">Define file, CSV, or folder sources in Configuration.</span></label>
+              <div id="response-body-field" class="code-editor"><div class="code-toolbar"><span><span class="code-dot"></span>Response body <span id="body-language" class="code-language">JSON</span></span><button type="button" id="format-response">Format</button></div><textarea id="endpoint-body" aria-label="Response body" spellcheck="false" rows="10">{ "message": "Hello, world!" }</textarea><div class="code-footer"><span>Use {{params.id}}, {{query.name}}, or {{body.name}} for dynamic values.</span></div></div>
+              <details class="options-panel"><summary>Headers &amp; content type <span class="subtle">Customize the response</span></summary><div class="options-content"><label>Content type <span class="optional">automatic when empty</span><input id="endpoint-content-type" placeholder="application/json"></label><label>Response headers <span class="optional">JSON object</span><textarea id="endpoint-headers" class="light-code" spellcheck="false" rows="4">{}</textarea></label></div></details>
+              <details class="options-panel"><summary>Advanced behavior <span class="subtle">Matching, scenarios &amp; handlers</span></summary><div class="options-content"><p class="field-help">Additional endpoint options as JSON: match, variants, sequence, handler, and OpenAPI metadata. These are preserved when editing the response above.</p><label class="sr-only" for="endpoint-advanced">Advanced endpoint options</label><textarea id="endpoint-advanced" class="light-code" spellcheck="false" rows="8">{}</textarea></div></details>
+              <p id="endpoint-error" class="form-error" role="alert" hidden></p></div>
+              <div class="editor-footer"><button type="button" id="test-endpoint" class="button"><svg><use href="#i-play"/></svg>Test endpoint</button><div><button type="button" id="discard-endpoint" class="button quiet">Discard</button><button type="submit" id="save-endpoint" class="button primary">Save &amp; apply <span class="key-hint">↵</span></button></div></div>
+            </form>
+          </section>
+        </div>
+        <p class="page-footnote">A little less waiting. A lot more building.<span>Running on your infrastructure.</span></p>
+      </section>
+      <section id="page-tester" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">FROM REQUEST TO RESPONSE</div><h1>Request tester</h1><p>Send a request to this instance and see exactly what comes back.</p></div></div>
+        <div class="tester-grid"><form id="tester-form" class="panel"><div class="panel-heading"><h2>Request</h2><span class="subtle">Current instance</span></div><div class="panel-body"><label>Use an endpoint<select id="tester-endpoint"><option value="">Custom request</option></select></label><div class="route-fields"><label class="method-field">Method<select id="tester-method"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option></select></label><label>Path &amp; query<input id="tester-path" class="mono" value="/" placeholder="/api/users/1?active=true" required></label></div><label>Request headers <span class="optional">JSON object</span><textarea id="tester-headers" class="light-code" spellcheck="false" rows="5">{}</textarea></label><label>Request body<textarea id="tester-body" class="light-code" placeholder="Optional body for POST, PUT, PATCH, or DELETE" spellcheck="false" rows="9"></textarea></label><p class="field-help">Replace path parameters with real values. Requests use the saved configuration and appear in your request log.</p><p id="tester-error" class="form-error" role="alert" hidden></p><button id="send-request" class="button primary" type="submit"><svg><use href="#i-play"/></svg>Send request</button></div></form><section class="panel tester-result"><div class="panel-heading"><h2>Response</h2><div id="response-meta" class="response-meta"></div></div><div id="tester-placeholder" class="empty-state"><span class="empty-icon"><svg><use href="#i-play"/></svg></span><h2>Ready when you are</h2><p>Send a request to inspect its<br>status, headers, and response body.</p></div><div id="tester-result" class="panel-body" hidden><div class="section-title"><h3>Body</h3><button id="copy-response" class="button small"><svg><use href="#i-copy"/></svg>Copy</button></div><pre id="tester-response-body" class="response-code" tabindex="0"></pre><details open><summary>Response headers</summary><pre id="tester-response-headers" class="light-code"></pre></details></div></section></div>
+      </section>
+      <section id="page-history" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">SEE WHAT'S HAPPENING</div><h1>Request log</h1><p>Inspect the requests reaching your mock API, as they happen.</p></div><div class="heading-actions"><button id="pause-history" class="button">Pause updates</button><button id="clear-history" class="button"><svg><use href="#i-trash"/></svg>Clear log</button></div></div>
+        <section class="panel"><div class="history-toolbar"><div class="search-box"><svg><use href="#i-search"/></svg><input id="history-search" type="search" aria-label="Filter requests" placeholder="Filter by path, method, or status…"></div><span id="history-caption" class="subtle"></span></div><div class="table-scroll"><table><thead><tr><th>Time</th><th>Method</th><th>Path</th><th>Status</th><th>Duration</th><th></th></tr></thead><tbody id="request-rows"></tbody></table></div><div id="history-empty" class="empty-state"><span class="empty-icon"><svg><use href="#i-log"/></svg></span><h2>Waiting for your first request</h2><p>Call an endpoint from your application or the request tester.<br>Requests will appear here automatically.</p></div></section>
+      </section>
+      <section id="page-configuration" class="page" hidden>
+        <div class="page-heading"><div><div class="eyebrow">YOUR INSTANCE, YOUR RULES</div><h1>Configuration</h1><p>Manage the complete configuration of your running instance.</p></div><button id="reset-scenarios" class="button"><svg><use href="#i-refresh"/></svg>Reset scenarios</button></div>
+        <div class="configuration-grid">
+          <form id="configuration-form" class="panel" novalidate>
+            <div class="panel-heading configuration-heading">
+              <div><h2>Instance configuration <span id="config-draft-indicator" class="draft" hidden>Unsaved</span></h2><p class="field-help" id="config-mode-help">Guided controls for your complete mock API.</p></div>
+              <div class="config-mode-switch" role="group" aria-label="Configuration editing mode">
+                <button type="button" id="config-normal-mode" aria-pressed="true" class="active">Normal mode</button>
+                <button type="button" id="config-expert-mode" aria-pressed="false">Expert mode</button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div id="config-visual"></div>
+              <div id="config-expert" hidden>
+                <div class="expert-toolbar"><span class="subtle">JSON or YAML · the same configuration draft</span><button type="button" id="format-config" class="button small">Format JSON</button></div>
+                <label class="sr-only" for="config-source">Configuration JSON or YAML</label>
+                <textarea id="config-source" class="full-config light-code" spellcheck="false" rows="27"></textarea>
+              </div>
+              <p id="configuration-error" class="form-error" role="alert" hidden></p>
+              <div class="config-actions"><div><button type="button" id="validate-config" class="button">Validate</button><button type="button" id="download-draft" class="button">Download draft</button></div><div><button type="button" id="discard-config" class="button quiet">Discard</button><button type="submit" id="save-config" class="button primary">Save &amp; apply</button></div></div>
+              <p class="field-help">Changes stay in this draft until you save. Applying a configuration resets request history, sequences, and CSV positions.</p>
+            </div>
+          </form>
+          <aside class="config-help"><h3>One source of truth</h3><p id="persistence-help">Changes are validated before being applied to the running instance.</p><h3>Two ways to work</h3><p>Normal mode guides you through every supported option. Expert mode gives you direct access to the same draft as JSON or YAML. Switching modes does not apply changes.</p><h3>Keep your workflow</h3><p>You can still edit the configuration file in your favorite editor. The console picks up valid changes automatically.</p><div class="help-callout"><strong>Some changes need a restart</strong><p>Host, port, and TLS changes require a restart. Download the draft and update the file to use these settings. Manage the admin token in the file too.</p></div></aside>
+        </div>
+      </section>
+    </main>
+  </div>
+  <dialog id="auth-dialog"><form id="auth-form"><div class="dialog-heading"><span class="brand-mark"><svg><use href="#i-code"/></svg></span><h2>Connect to Mock API</h2></div><p id="auth-message">Enter the admin token configured for this instance.</p><label>Admin token<input id="admin-token" type="password" autocomplete="off" placeholder="Your instance token"></label><p class="field-help">The token stays in this tab's memory and is cleared when you refresh or disconnect.</p><p id="auth-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" id="disconnect" class="button">Disconnect</button><button type="submit" class="button primary">Connect</button></div></form></dialog>
+  <dialog id="request-dialog"><div class="dialog-heading"><h2>Request details</h2><button id="close-request" class="button small">Close</button></div><p id="request-detail-title" class="mono"></p><pre id="request-detail" class="light-code" tabindex="0"></pre></dialog>
+  <dialog id="confirm-dialog"><form method="dialog"><h2 id="confirm-title"></h2><p id="confirm-message"></p><div class="dialog-actions"><button value="cancel" class="button">Cancel</button><button value="confirm" id="confirm-action" class="button primary">Continue</button></div></form></dialog>
+  <input id="import-file" type="file" accept=".yaml,.yml,.json,.mockapi-config" hidden>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>
