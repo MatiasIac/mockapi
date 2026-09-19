@@ -1,13 +1,12 @@
 # Changelog
 
-## Unreleased
+## Version 3.0.0 notes
 
 - Add Normal and Expert configuration modes with a shared draft. Visual controls
   cover all supported configuration options, endpoint CRUD, typed response values,
   matching, variants, sequences, data sources, handlers, and OpenAPI metadata.
 - Preserve source/handler references on rename, support source/visual mode
   switching without applying changes, and allow downloading unapplied drafts.
-
 - Add an optional web console at `/__mockapi/ui/`, enabled through `--ui` or the
   existing admin configuration, for managing a running Mock API instance.
 - Add endpoint editing, duplication and deletion; JSON/text/data responses;
@@ -22,7 +21,12 @@
   non-root user to save its bundled configuration, and add browser and integration
   coverage for the new workflows.
 
-## Unreleased
+## Version 2.6.1 notes
+
+- Fix configuration hot reload when using Windows short directory paths.
+- Correct the static stream failure test to use canonical file paths on Windows.
+
+## Version 2.6.0 notes
 
 - Full-path routing and literal-route precedence.
 - Validated, atomic configuration reloads with clear errors.

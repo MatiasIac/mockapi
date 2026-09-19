@@ -547,6 +547,25 @@ Single-file bind mounts and read-only mounts cannot support atomic console
 saves. Changes to the image's bundled file without a directory mount are local
 to that container and disappear when the container is removed.
 
+To create a reusable container from the published image, run this **once**.
+Replace `WORKSPACE_PATH` with the absolute path to a directory containing your
+`.mockapi-config`, configured with port 8001, `admin.enabled: true`, and an
+`admin.token`:
+
+```sh
+docker run -d --name mockapi --restart unless-stopped -p 127.0.0.1:8001:8001 --mount "type=bind,source=WORKSPACE_PATH,target=/workspace" matiasiacono/mock-api:3.0.0 node main.js --config /workspace/.mockapi-config
+```
+
+The terminal is available immediately, and the container remains after stopping.
+Open `http://localhost:8001/__mockapi/ui/` and enter your configured token.
+It starts automatically when Docker starts unless you explicitly stopped it.
+Use Docker Desktop's start/stop controls or reuse the container with:
+
+```sh
+docker stop mockapi
+docker start mockapi
+```
+
 ```sh
 npm test
 npm run test:coverage
